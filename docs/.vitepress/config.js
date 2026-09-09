@@ -4,6 +4,15 @@ export default {
   lang: 'ko-KR',
   appearance: 'dark',
   lastUpdated: true,
+  head: [
+    ['link', { rel: 'preconnect', href: 'https://cdn.jsdelivr.net', crossorigin: '' }],
+    ['link', {
+      rel: 'stylesheet',
+      as: 'style',
+      crossorigin: '',
+      href: 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css'
+    }]
+  ],
   themeConfig: {
     nav: [
       { text: '홈', link: '/' },

@@ -1,0 +1,62 @@
+/* ============================================================
+   1. 한글 웹폰트 지정
+   - 영문은 기존 Inter 유지, 한글 글리프가 없을 때 Pretendard로 폴백
+   - 실제 폰트 파일 로드는 config.js head의 <link>가 담당
+   - 이렇게 하면 로컬 Malgun Gothic 폴백 대신 어느 환경(Vercel 썸네일 포함)에서도
+     동일하게 Pretendard로 한글이 렌더링됨
+   ============================================================ */
+:root {
+  --vp-font-family-base:
+    'Inter', 'Pretendard Variable', Pretendard,
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+    'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+
+/* 코드 폰트는 그대로 두되, 한글 주석 등도 안정적으로 나오도록 폴백만 보강 */
+:root {
+  --vp-font-family-mono:
+    'Fira Code', 'JetBrains Mono', ui-monospace, SFMono-Regular,
+    'SF Mono', Menlo, Consolas, monospace, 'Pretendard Variable';
+}
+
+/* ============================================================
+   2. 한국어 줄바꿈 (어절 단위) — word-break: keep-all
+   - "배/우기", "데이터/로" 처럼 단어(어절) 중간에서 끊기는 문제 해결
+   - overflow-wrap로 URL 등 아주 긴 문자열은 예외적으로 끊기 허용
+   ============================================================ */
+
+/* 홈 히어로 타이틀/태그라인 */
+.VPHero .name,
+.VPHero .text,
+.VPHero .tagline {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 본문 산문 영역: 제목·문단·리스트·표만 대상 (코드블록 제외) */
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.vp-doc h4,
+.vp-doc p,
+.vp-doc li,
+.vp-doc td,
+.vp-doc th {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 사이드바 / 홈 features 카드 텍스트도 동일 처리 */
+.VPSidebarItem .text,
+.VPFeature .title,
+.VPFeature .details {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 코드블록·인라인코드는 keep-all 영향 안 받도록 원복 (가로 스크롤 유지) */
+.vp-doc div[class*='language-'] code,
+.vp-doc :not(pre) > code {
+  word-break: normal;
+  overflow-wrap: normal;
+}

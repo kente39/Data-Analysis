@@ -60,3 +60,11 @@
   word-break: normal;
   overflow-wrap: normal;
 }
+
+/* ============================================================
+   3. 라이트박스: 본문 이미지에 확대 가능 커서 힌트
+   (캐러셀 이미지 .ic img, .no-zoom 은 제외)
+   ============================================================ */
+.vp-doc img { cursor: zoom-in; }
+.vp-doc .ic img,
+.vp-doc img.no-zoom { cursor: default; }

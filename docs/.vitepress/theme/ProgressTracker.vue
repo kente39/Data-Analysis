@@ -1,15 +1,17 @@
 <script setup>
 import { onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vitepress'
-import { setLast, addVisited, getScroll, setScroll } from './progress.js'
+import { setLast, addVisited, getScroll, setScroll, normalizePath } from './progress.js'
 
 const route = useRoute()
+const RESUME_KEY = 'plantguide:resumeTo'
+
 let ticking = false
+let navSuppress = false     // 이동 직후 자동 스크롤(맨 위로)이 저장값을 덮어쓰지 않도록 잠깐 저장 중단
 let currentPath = ''
 
-// 스크롤을 throttle(rAF)해서 현재 페이지 위치 저장
 function onScroll() {
-  if (ticking) return
+  if (navSuppress || ticking) return
   ticking = true
   requestAnimationFrame(() => {
     if (currentPath) setScroll(currentPath, window.scrollY)
@@ -17,41 +19,47 @@ function onScroll() {
   })
 }
 
-// 페이지 진입 시: 이어보기/방문 기록 + (앵커 없을 때만) 저장된 스크롤 복원
-function handleEnter(path) {
-  currentPath = path
+function record(path) {
+  currentPath = normalizePath(path)
   setLast(path)
   addVisited(path)
+}
 
-  // #heading 앵커로 들어온 경우엔 복원하지 않음 (VitePress 기본 동작 존중)
+// '이어보기' 버튼으로 들어온 경우에만 저장된 스크롤 위치로 복원.
+// 이전/다음·사이드바 등 일반 이동은 복원하지 않음 → VitePress 기본대로 맨 위.
+function maybeResume(path) {
+  let target = ''
+  try { target = sessionStorage.getItem(RESUME_KEY) || '' } catch {}
+  if (!target) return
+  if (normalizePath(path) !== normalizePath(target)) return
+  try { sessionStorage.removeItem(RESUME_KEY) } catch {}
   if (window.location.hash) return
-
   const y = getScroll(path)
   if (y > 0) {
-    // 콘텐츠 렌더 후 복원 (약간의 지연)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => window.scrollTo({ top: y, behavior: 'auto' }))
-    })
+    // VitePress 기본 스크롤(맨 위로)보다 나중에 실행되도록 약간 지연
+    setTimeout(() => window.scrollTo({ top: y, behavior: 'auto' }), 120)
   }
+}
+
+function enter(path) {
+  navSuppress = true
+  record(path)
+  maybeResume(path)
+  setTimeout(() => { navSuppress = false }, 250)
 }
 
 onMounted(() => {
   window.addEventListener('scroll', onScroll, { passive: true })
-  handleEnter(route.path)
+  enter(route.path)
 })
 
 onUnmounted(() => {
   window.removeEventListener('scroll', onScroll)
 })
 
-// SPA 라우트 변경 감지
-watch(
-  () => route.path,
-  (path) => handleEnter(path)
-)
+watch(() => route.path, (path) => enter(path))
 </script>
 
 <template>
-  <!-- 화면에 아무것도 그리지 않는 로직 전용 컴포넌트 -->
   <span aria-hidden="true" style="display: none" />
 </template>

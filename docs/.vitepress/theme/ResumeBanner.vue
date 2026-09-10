@@ -12,6 +12,13 @@ onMounted(() => {
   lastTitle.value = last.value ? titleFor(last.value) : ''
   visitedCount.value = getVisited().length
 })
+
+// '이어보기'로 들어갈 때만 스크롤 복원되도록 플래그를 심는다
+function onResume() {
+  try {
+    sessionStorage.setItem('plantguide:resumeTo', last.value)
+  } catch {}
+}
 </script>
 
 <template>
@@ -21,7 +28,7 @@ onMounted(() => {
       <span class="resume-title">{{ lastTitle }}</span>
       <span v-if="visitedCount" class="resume-count">· 지금까지 {{ visitedCount }}개 페이지 학습</span>
     </div>
-    <a class="resume-btn" :href="withBase(last + '.html')">이어서 학습하기 →</a>
+    <a class="resume-btn" :href="withBase(last + '.html')" @click="onResume">이어서 학습하기 →</a>
   </div>
 </template>
 

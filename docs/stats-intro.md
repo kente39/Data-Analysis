@@ -32,7 +32,7 @@
 
 평균은 극단값(이상치)에 쉽게 흔들리고, 중앙값은 거의 안 흔들립니다.
 
-![평균 vs 중앙값](./imgs/02_mean_median.png)
+![평균 vs 중앙값](./imgs/stats-intro/02_mean_median.png)
 
 ::: tip 비유
 친구 9명 재산이 3천만 원인데 재벌 1명(100억)이 끼면 "평균 재산 10억" — 아무도 실제로 안 가진 숫자. 이럴 땐 중앙값이 더 대표적입니다.
@@ -42,7 +42,7 @@
 
 평균이 같아도 데이터가 몰려있는지 퍼져있는지가 다릅니다.
 
-![표준편차](./imgs/03_std.png)
+![표준편차](./imgs/stats-intro/03_std.png)
 
 ::: tip 비유
 양궁 선수 둘 다 평균 10점이어도, 한 명은 9~11점(표준편차 작음), 한 명은 5~15점(큼)일 수 있습니다.
@@ -50,21 +50,21 @@
 
 ## 6. 분포 모양 — 정규분포와 왜도
 
-![정규분포](./imgs/01_normal.png)
+![정규분포](./imgs/stats-intro/01_normal.png)
 
-![왜도](./imgs/04_skew.png)
+![왜도](./imgs/stats-intro/04_skew.png)
 
 `plant_growth.csv`의 height_cm도 오른쪽 꼬리(양의 왜도) — 크게 자란 대형 개체 소수 때문입니다.
 
 ## 7. 상관관계
 
-![상관관계](./imgs/05_correlation.png)
+![상관관계](./imgs/stats-intro/05_correlation.png)
 
 +1에 가까우면 강한 양의 상관, 0이면 관계 없음, -1이면 강한 음의 상관.
 
 ## 8. 상관관계 ≠ 인과관계
 
-![상관과 인과](./imgs/06_causation.png)
+![상관과 인과](./imgs/stats-intro/06_causation.png)
 
 ::: warning 가장 흔한 함정
 아이스크림 판매량과 익사 사고는 상관이 높지만, 진짜 원인은 "더운 날씨"(교란변수)입니다. 상관만 보고 인과를 단정하지 마세요.

@@ -27,7 +27,7 @@ for name, pipe in [('Linear',lr_pipe),('KNN',knn_pipe),('DecisionTree',dt_pipe),
     print(name, 'R2=', round(r2_score(y_test, pipe.predict(X_test)), 4))
 ```
 
-![reg](./imgs/m6_reg.png)
+![reg](./imgs/module06/m6_reg.png)
 
 ::: tip 왜 Linear가 이겼을까
 prev_height_cm과 height_cm이 거의 선형(r≈0.95)이라, 복잡한 트리 모델보다 단순한 선형모델이 더 잘 맞습니다. **트리 계열이 항상 좋은 건 아니며, 데이터의 실제 관계 구조에 맞는 모델을 고르는 게 중요합니다.**
@@ -44,7 +44,7 @@ from sklearn.model_selection import cross_val_score, KFold
 cv = cross_val_score(rf_pipe, X, y, cv=KFold(5, shuffle=True, random_state=42), scoring='r2')
 ```
 
-![cv](./imgs/m6_cv.png)
+![cv](./imgs/module06/m6_cv.png)
 
 fold마다 0.78~0.92로 차이. 한 번의 분할 결과만 믿으면 운 좋은 fold를 전체 성능으로 착각할 위험을 보여줍니다.
 
@@ -59,7 +59,7 @@ lr_clf = Pipeline([('prep', preprocessor_c), ('model', LogisticRegression(max_it
 # ... KNN, DecisionTree, RandomForest 동일 패턴
 ```
 
-![clf](./imgs/m6_clf.png)
+![clf](./imgs/module06/m6_clf.png)
 
 ::: warning Accuracy 함정
 "무조건 N만 찍어도" Accuracy 87.8%가 나옵니다. 모든 모델 Accuracy는 87~88%로 높아 보이지만 Recall(Y)은 4~9%로 매우 낮습니다 — 개화 식물을 거의 놓치고 있다는 뜻입니다.
@@ -73,7 +73,7 @@ print(confusion_matrix(y_test, pred, labels=['Y','N']))
 print(classification_report(y_test, pred))
 ```
 
-![confusion](./imgs/m6_confusion.png)
+![confusion](./imgs/module06/m6_confusion.png)
 
 ## 6-7. 불균형 대응 — balanced accuracy, PR AUC, 임계값 조정
 
@@ -83,7 +83,7 @@ from sklearn.metrics import balanced_accuracy_score, average_precision_score
 rf_balanced = RandomForestClassifier(n_estimators=200, class_weight='balanced', random_state=42)
 ```
 
-![imbalance](./imgs/m6_imbalance.png)
+![imbalance](./imgs/module06/m6_imbalance.png)
 
 임계값을 0.5→0.2로 낮추면 Recall이 4%→46%로 오르지만 Precision은 떨어지는 트레이드오프가 뚜렷합니다.
 
@@ -102,7 +102,7 @@ grid = GridSearchCV(rf_pipe, param_grid, cv=3, scoring='r2', n_jobs=-1)
 grid.fit(X_train, y_train)
 ```
 
-![grid](./imgs/m6_grid.png)
+![grid](./imgs/module06/m6_grid.png)
 
 max_depth를 제한 없이(None) 키운 것보다 얕게(5) 제한한 게 더 좋았습니다 — 과적합 방지 원칙이 실제로 확인된 사례입니다. (파라미터 앞 `model__`은 Pipeline 단계명 문법)
 
@@ -115,7 +115,7 @@ from sklearn.inspection import permutation_importance
 perm = permutation_importance(best_model, X_test, y_test, n_repeats=10)
 ```
 
-![importance](./imgs/m6_importance.png)
+![importance](./imgs/module06/m6_importance.png)
 
 ::: warning feature_importances_는 절대적 진실 아님
 트리 중요도는 상관된 변수끼리 나눠 갖거나 인코딩 영향을 받습니다. 위처럼 `permutation_importance`로 교차 확인하는 습관이 좋습니다. 두 방식 모두 prev_height_cm이 압도적이라는 같은 결론을 보여줍니다.

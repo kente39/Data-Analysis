@@ -18,7 +18,7 @@ df = pd.read_csv('plant_growth.csv')
 df['height_cm'].describe()
 ```
 
-![describe](./imgs/m2_describe.png)
+![describe](./imgs/module02/m2_describe.png)
 
 | 항목 | 의미 |
 |---|---|
@@ -42,7 +42,7 @@ print(f'표준편차: {std:.2f}')
 print(f'평균 - 중앙값: {mean-median:.2f}')
 ```
 
-![manual](./imgs/m2_manual.png)
+![manual](./imgs/module02/m2_manual.png)
 
 평균-중앙값이 양수(+2.53)라는 건 소수의 큰 값이 평균을 끌어올렸다는 뜻 — 오른쪽 꼬리(양의 왜도) 가능성을 시사합니다.
 
@@ -59,7 +59,7 @@ print(f'왜도(skewness): {skew:.3f}')
 print(f'첨도(kurtosis): {kurt:.3f}')
 ```
 
-![skew](./imgs/m2_skew.png)
+![skew](./imgs/module02/m2_skew.png)
 
 ## 2-4. 이상치 탐지 ① IQR
 
@@ -77,7 +77,7 @@ print(f'정상범위: {lower:.1f} ~ {upper:.1f}')
 print(f'이상치: {len(outliers)}개')
 ```
 
-![iqr](./imgs/m2_iqr.png)
+![iqr](./imgs/module02/m2_iqr.png)
 
 ::: warning 무작정 삭제 금지
 종마다 정상 크기가 다르므로, 잡힌 95개 중 상당수는 원래 크게 자라는 고무나무·몬스테라일 수 있습니다. `groupby('species')`로 종별로 나눠 보는 게 더 정확합니다.
@@ -92,7 +92,7 @@ z_outliers = df[abs(z) > 3]
 print(f'|Z|>3 이상치: {len(z_outliers)}개')
 ```
 
-![zscore](./imgs/m2_zscore.png)
+![zscore](./imgs/module02/m2_zscore.png)
 
 ::: warning 표준편차 0 주의
 Z-score는 표준편차로 나누므로, 모든 값이 동일해 std가 0이면 에러가 납니다. 적용 전 `df[col].std() == 0` 확인 습관을.
@@ -106,7 +106,7 @@ IQR과 Z-score 비교: IQR은 중앙값 기반이라 극단치 영향을 덜 받
 (df.isnull().mean() * 100).round(2)   # 결측 비율(%)
 ```
 
-![missingpct](./imgs/m2_missingpct.png)
+![missingpct](./imgs/module02/m2_missingpct.png)
 
 ::: tip 핵심
 `isnull()`은 진짜 NaN만 잡는다. `'·정보없음'` 같은 문자열 위장 결측치는 `value_counts()`로만 발견된다.
@@ -116,7 +116,7 @@ IQR과 Z-score 비교: IQR은 중앙값 기반이라 극단치 영향을 덜 받
 df['species'].value_counts(dropna=False)
 ```
 
-![dirty](./imgs/m2_dirty.png)
+![dirty](./imgs/module02/m2_dirty.png)
 
 ```python
 # 발견한 가짜 결측치를 진짜 NaN으로 통일 (여러 형태 한번에)

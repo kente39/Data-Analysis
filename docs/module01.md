@@ -22,7 +22,7 @@ print('한 달 후 예상 (10% 성장 가정):')
 print(arr * 1.1)
 ```
 
-![NumPy 기초](./imgs/m1_numpy.png)
+![NumPy 기초](./imgs/module01/m1_numpy.png)
 
 ## 1-2. 데이터 불러오기 & 첫 탐색
 
@@ -32,7 +32,7 @@ df = pd.read_csv('plant_growth.csv')
 df.head()
 ```
 
-![head](./imgs/m1_head.png)
+![head](./imgs/module01/m1_head.png)
 
 | 명령어 | 확인하는 것 |
 |---|---|
@@ -45,7 +45,7 @@ df.head()
 df.info()
 ```
 
-![info](./imgs/m1_info.png)
+![info](./imgs/module01/m1_info.png)
 
 ::: tip 여기서 이미 결측치가 보인다
 `info()`의 Non-Null Count를 보면 species, light_condition, days_since_repot, prev_height_cm에 결측치가 있다는 걸 바로 알 수 있습니다.
@@ -55,7 +55,7 @@ df.info()
 df.describe()
 ```
 
-![describe](./imgs/m1_describe.png)
+![describe](./imgs/module01/m1_describe.png)
 
 ## 1-3. 인덱싱 — loc / iloc / Boolean
 
@@ -84,7 +84,7 @@ tall = df[(df['species'] == '몬스테라') & (df['height_cm'] >= 60)]
 df.groupby('species')['height_cm'].agg(['mean', 'median', 'count'])
 ```
 
-![groupby](./imgs/m1_groupby.png)
+![groupby](./imgs/module01/m1_groupby.png)
 
 `'·정보없음'`이 별도 그룹으로 잡히는 게 보입니다. 이건 진짜 결측치(NaN)가 아니라 **결측을 나타내려고 입력해놓은 문자열**입니다 — NaN과는 성격이 다른 "정제되지 않은 범주형 값"으로, 5장에서 NaN과 동일하게 통일시킵니다.
 
@@ -94,7 +94,7 @@ df.groupby('species')['height_cm'].agg(['mean', 'median', 'count'])
 df.isnull().sum()
 ```
 
-![isnull](./imgs/m1_isnull.png)
+![isnull](./imgs/module01/m1_isnull.png)
 
 ```python
 # 결측치 비율(%)

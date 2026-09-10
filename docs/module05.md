@@ -17,7 +17,7 @@ df['species'] = df['species'].replace('·정보없음', np.nan)
 df.isnull().sum()
 ```
 
-![missing](./imgs/m5_missing.png)
+![missing](./imgs/module05/m5_missing.png)
 
 species가 원래 결측 110개 + 가짜 결측 20개 = 130개가 됩니다.
 
@@ -40,7 +40,7 @@ imp_num = SimpleImputer(strategy='median')       # 수치형
 imp_cat = SimpleImputer(strategy='most_frequent')# 범주형
 ```
 
-![imputer](./imgs/m5_imputer.png)
+![imputer](./imgs/module05/m5_imputer.png)
 
 ::: tip
 `imputer.statistics_`에 실제 채운 값이 저장됩니다. 채운 후 의도대로 됐는지 검증하는 습관을.
@@ -58,7 +58,7 @@ ohe = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
 ord_enc = OrdinalEncoder(categories=[['Small','Medium','Large'], ['Low','Medium','High']])
 ```
 
-![encoding](./imgs/m5_encoding.png)
+![encoding](./imgs/module05/m5_encoding.png)
 
 ::: warning LabelEncoder를 여기 쓰지 않는 이유
 `LabelEncoder`는 이름과 달리 **입력 특성(X)이 아니라 정답(y) 인코딩용**입니다. 입력 특성의 범주형에는 쓰지 않는 게 원칙이며, 순서형은 `OrdinalEncoder(categories=...)`로 순서를 직접 지정하세요. (알파벳 순 임의 매핑되는 부작용도 있지만 부차적 이유)
@@ -70,7 +70,7 @@ ord_enc = OrdinalEncoder(categories=[['Small','Medium','Large'], ['Low','Medium'
 from sklearn.preprocessing import StandardScaler, RobustScaler
 ```
 
-![scaler](./imgs/m5_scaler.png)
+![scaler](./imgs/module05/m5_scaler.png)
 
 ::: warning StandardScaler도 이상치 영향받음
 "이상치엔 StandardScaler가 안전"은 과장입니다. StandardScaler(평균·표준편차), MinMaxScaler(최소·최대) 모두 이상치 영향을 받습니다. **이상치가 심하면 중앙값·IQR 기반 `RobustScaler`**가 더 적합합니다.
@@ -107,7 +107,7 @@ preprocessor = ColumnTransformer([
 ])
 ```
 
-![pipeline](./imgs/m5_pipeline.png)
+![pipeline](./imgs/module05/m5_pipeline.png)
 
 ::: info 버전 참고
 `OneHotEncoder(sparse_output=False)`는 sklearn 최신 기준. 구버전은 `sparse=False`. (이 가이드는 1.8.0 검증)

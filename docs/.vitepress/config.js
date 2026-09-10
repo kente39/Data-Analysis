@@ -24,8 +24,8 @@ export default {
         text: '시작하기',
         collapsed: false,
         items: [
-          { text: '0. 개발환경 셋업', link: '/module00' },
-          { text: '통계학 기초 입문', link: '/stats-intro' }
+          { text: '0-1. 개발환경 셋업', link: '/module00' },
+          { text: '0-2. 통계학 기초 입문', link: '/stats-intro' }
         ]
       },
       {

@@ -31,7 +31,7 @@ ax.hist(df['height_cm'].dropna(), bins=40)
 ax.set_title('height_cm 분포')
 ```
 
-![hist](./imgs/m3_hist.png)
+![hist](./imgs/module03/m3_hist.png)
 
 ```python
 # 박스플롯 — 채광 조건별 분포
@@ -39,7 +39,7 @@ groups = [df[df['light_condition']==l]['height_cm'].dropna() for l in ['Low','Me
 ax.boxplot(groups, tick_labels=['Low','Medium','High'])
 ```
 
-![box](./imgs/m3_box.png)
+![box](./imgs/module03/m3_box.png)
 
 ::: warning 버전 주의
 `tick_labels` 인자는 Matplotlib 버전에 따라 이름이 다릅니다(구버전은 `labels`).
@@ -50,7 +50,7 @@ ax.boxplot(groups, tick_labels=['Low','Medium','High'])
 ax.scatter(df['prev_height_cm'], df['height_cm'], alpha=0.3)
 ```
 
-![scatter](./imgs/m3_scatter.png)
+![scatter](./imgs/module03/m3_scatter.png)
 
 거의 직선에 가까운 강한 양의 상관으로 보입니다. 정확한 상관계수는 4장에서 `pearsonr()`로 계산합니다(스포일러: r≈0.95).
 
@@ -73,7 +73,7 @@ import seaborn as sns
 sns.boxplot(data=df, x='species', y='height_cm', hue='is_blooming')
 ```
 
-![boxhue](./imgs/m3_boxhue.png)
+![boxhue](./imgs/module03/m3_boxhue.png)
 
 대부분의 종에서 개화(Y) 개체의 중앙값이 더 높게 보입니다. 다만 그룹별 표본 수가 다르므로, 이 시각적 인상이 통계적으로 유의한지는 4장에서 검정으로 확인합니다.
 
@@ -84,7 +84,7 @@ num_cols = ['watering_per_week','fertilizer_ml','humidity_pct','temperature_c','
 sns.heatmap(df[num_cols].corr(), annot=True, fmt='.2f', cmap='RdBu_r', vmin=-1, vmax=1)
 ```
 
-![heatmap](./imgs/m3_heatmap.png)
+![heatmap](./imgs/module03/m3_heatmap.png)
 
 `prev_height_cm ↔ height_cm`(0.95)가 압도적으로 강하고, 나머지는 대체로 약한 상관입니다.
 
@@ -95,7 +95,7 @@ sub = df[['prev_height_cm','height_cm','fertilizer_ml','species']].dropna()
 sns.pairplot(sub, hue='species', plot_kws={'alpha':0.4})
 ```
 
-![pairplot](./imgs/m3_pairplot.png)
+![pairplot](./imgs/module03/m3_pairplot.png)
 
 대각선엔 각 변수의 단변량 분포(버전/옵션에 따라 히스토그램 또는 KDE, `diag_kind='kde'`로 지정 가능), 나머지 칸엔 산점도. 처음 데이터를 받으면 가장 먼저 돌려볼 "한눈에 훑기" 명령어입니다.
 

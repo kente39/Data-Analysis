@@ -77,32 +77,45 @@ plt.show()
 
 ## 3-2. 기본 차트 — 히스토그램 / 박스플롯 / 산점도
 
-어떤 차트를 언제 쓰나: **선=흐름, 막대=범주별 크기, 히스토그램=값 분포, 박스플롯=중앙값·퍼짐·이상치, 산점도=두 변수 관계.**
+어떤 차트를 언제 쓰나: **선=흐름, 막대=범주별 크기, 히스토그램=값 분포, 박스플롯=중앙값·퍼짐·이상치, 산점도=두 변수 관계**
 
 ```python
 # 히스토그램 — 분포 모양
-fig, ax = plt.subplots(figsize=(7,4))
+fig, ax = plt.subplots(figsize=(7, 4))
 ax.hist(df['height_cm'].dropna(), bins=40)
 ax.set_title('height_cm 분포')
+plt.show()
 ```
 
 ![hist](./imgs/module03/m3_hist.png)
 
 ```python
 # 박스플롯 — 채광 조건별 분포
-groups = [df[df['light_condition']==l]['height_cm'].dropna() for l in ['Low','Medium','High']]
-ax.boxplot(groups, tick_labels=['Low','Medium','High'])
+groups = [df[df['light_condition'] == l]['height_cm'].dropna()
+          for l in ['Low', 'Medium', 'High']]
+
+fig, ax = plt.subplots(figsize=(7, 4))
+ax.boxplot(groups, tick_labels=['Low', 'Medium', 'High'])
+ax.set_title('채광 조건별 height_cm 분포')
+ax.set_xlabel('light_condition')
+ax.set_ylabel('height_cm')
+plt.show()
 ```
 
 ![box](./imgs/module03/m3_box.png)
 
 ::: warning 버전 주의
-`tick_labels` 인자는 Matplotlib 버전에 따라 이름이 다릅니다(구버전은 `labels`).
+`tick_labels` 인자는 Matplotlib 버전에 따라 이름이 다를 수 있습니다.구버전에서는 `labels`를 사용합니다..
 :::
 
 ```python
 # 산점도 — 이전 키 vs 현재 키
+fig, ax = plt.subplots(figsize=(7, 4))
 ax.scatter(df['prev_height_cm'], df['height_cm'], alpha=0.3)
+ax.set_title('prev_height_cm vs height_cm')
+ax.set_xlabel('prev_height_cm')
+ax.set_ylabel('height_cm')
+plt.show()
 ```
 
 ![scatter](./imgs/module03/m3_scatter.png)

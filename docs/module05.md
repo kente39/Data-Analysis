@@ -1,10 +1,6 @@
 # 5. 전처리 — scikit-learn
 
-통합마스터가이드 5장을 scikit-learn으로 옮깁니다. SimpleImputer·OneHotEncoder·StandardScaler와, 이 셋을 묶는 Pipeline·ColumnTransformer까지. 여기서 만든 파이프라인은 Module 6에서 그대로 재사용합니다.
-
-::: warning 수치 기준
-모든 수치는 원본 5,000행 기준입니다.
-:::
+머신러닝에 넣기 전, 데이터를 모델이 학습할 수 있는 형태로 다듬습니다. 결측치 채우기(SimpleImputer), 범주형 인코딩(OneHotEncoder), 스케일 맞추기(StandardScaler)와 이 셋을 묶는 Pipeline·ColumnTransformer까지 익힙니다. 여기서 만든 파이프라인은 Module 6에서 그대로 재사용합니다.
 
 ## 5-1. 가짜 결측치부터 정리
 

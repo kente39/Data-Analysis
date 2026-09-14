@@ -2,7 +2,7 @@ export default {
   title: 'Python 데이터분석 AtoZ',
   description: '반려식물 생육 데이터로 배우는 데이터 분석 (NumPy·Pandas부터 딥러닝까지)',
   lang: 'ko-KR',
-  appearance: 'dark',
+  appearance: true,
   lastUpdated: true,
   head: [
     ['link', { rel: 'preconnect', href: 'https://cdn.jsdelivr.net', crossorigin: '' }],

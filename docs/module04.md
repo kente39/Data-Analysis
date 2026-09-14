@@ -89,6 +89,32 @@ print(f'통계량={stat:.4f}, p-value={p:.6f}')
 print('등분산 가정 기각 -> Welch 필요' if p < 0.05 else '등분산 가정 유지')
 ```
 
+::: details 이 코드 자세히 보기 — 종별로 키를 나눠 담기
+`stats.levene`는 "그룹별 값 묶음들"을 각각 받아야 합니다. 그래서 종마다 키를 따로 담은 리스트를 먼저 만듭니다.
+
+```python
+# 종(species)별로 height_cm 값을 따로 모아 리스트로 만듭니다.
+# 이 한 줄은 아래 for문을 짧게 줄여 쓴 것입니다(리스트 컴프리헨션).
+#
+#   groups = []
+#   for s in df_clean['species'].unique():        # 종 이름을 하나씩 (스투키, 몬스테라, ...)
+#       one = df_clean[df_clean['species'] == s]  # 그 종의 행만 골라내고
+#       groups.append(one['height_cm'].dropna())  # 그 종의 키(결측 제외)를 리스트에 담는다
+groups = [df_clean[df_clean['species'] == s]['height_cm'].dropna()
+          for s in df_clean['species'].unique()]
+```
+**안쪽부터 바깥으로 분해하면:**
+
+1. `df_clean['species'].unique()` — 데이터에 있는 **종 이름을 중복 없이** 뽑습니다(스투키·필로덴드론·고무나무·스킨답서스·몬스테라·산세베리아, 6종).
+2. `df_clean['species'] == s` — 각 행이 그 종인지 **True/False**로 표시합니다(2장에서 본 Boolean 인덱싱).
+3. `df_clean[ ... ]` — True인 행, 즉 **그 종의 개체만** 골라냅니다.
+4. `['height_cm'].dropna()` — 그 종의 **키 열만, 결측치는 제외**하고 가져옵니다.
+
+이 과정을 6개 종에 대해 반복해 **길이 6짜리 리스트**를 만듭니다. 각 원소는 한 종의 키 값 묶음입니다(예: 몬스테라 1,093개, 필로덴드론 470개).
+
+마지막으로 `stats.levene(*groups)`의 `*`는 이 리스트를 **낱개 인자로 풀어서** 넘긴다는 뜻입니다 — `levene(그룹1, 그룹2, …, 그룹6)`처럼 6개를 각각 전달합니다.
+:::
+
 ![levene](./imgs/module04/m4_levene.png)
 
 **결과 해석:** p-value가 사실상 0에 가까우므로 "분산이 모두 같다"는 가정을 **기각**합니다.  

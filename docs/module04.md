@@ -240,7 +240,7 @@ print(f"Cohen's d = {cohens_d(y_group, n_group):.3f}")
 이름은 '분산분석'이지만 실제로 비교하는 것은 **평균**입니다 — 그룹 간 차이를 그룹 내 퍼짐과 견주어 판단하기 때문에 분산이라는 말이 붙었습니다.
 :::
 
-````python
+```python
 from scipy import stats
 
 # 4-2에서 만든 groups(종별 height_cm 리스트)를 그대로 사용합니다.
@@ -250,7 +250,7 @@ f, p = stats.f_oneway(*groups)
 
 # p-value < 0.05이면 "모든 종의 평균이 같다"를 기각합니다(= 적어도 한 종은 다름).
 print(f'F통계량={f:.3f}, p-value={p:.2e}')
-
+```
 
 ![anova](./imgs/module04/m4_anova.png)
 
@@ -260,11 +260,8 @@ print(f'F통계량={f:.3f}, p-value={p:.2e}')
 
 **eta-squared = 0.160** — 전체 키의 변동 중 약 16%가 "종 차이"로 설명된다는 뜻입니다. 통상 0.01/0.06/0.14를 작음/중간/큼의 대략 기준으로 보므로, 0.160은 **큰 효과**에 해당합니다.
 
-````
-
 이어서 Welch ANOVA입니다. 4-2에서 등분산이 깨졌으니 더 엄밀한 버전을 함께 씁니다.
 
-````md
 ::: warning 등분산이 깨졌으니 Welch's ANOVA도
 `f_oneway`는 "그룹들의 분산이 같다"를 가정하는 ANOVA입니다. 4-2에서 그 가정이 깨졌으므로, 등분산을 가정하지 않는 **Welch's ANOVA**를 함께 확인하는 것이 안전합니다(4-3에서 t-검정에 Welch 보정을 쓴 것과 같은 이유).
 :::

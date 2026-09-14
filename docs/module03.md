@@ -52,6 +52,10 @@ Matplotlib은 `fig`(도화지)와 `ax`(그 위 좌표축)를 나눠 다룹니다
 :::
 
 ```python
+# matplotlib는 파이썬에서 그래프를 그릴 때 가장 많이 사용하는 시각화 라이브러리입니다.
+# 그중 pyplot은 "그래프를 직접 그리는 도구 모음" 역할을 합니다.
+# as plt 는 별칭(alias)을 붙이는 문법입니다.
+# matplotlib.pyplot라는 긴 이름 대신, 코드에서 plt만 써서 간단하게 호출합니다.(관례)
 import matplotlib.pyplot as plt
 
 # 종별 개체 수 세기

@@ -459,16 +459,18 @@ print(f'chi2={chi2:.3f}, p-value={p:.2e}, dof={dof}')
 ```python
 from scipy import stats
 
-# 상관을 계산할 두 열만 뽑고, 결측치가 있는 행은 제외합니다.
-# - prev_height_cm에 결측이 있으므로, 두 열이 모두 있는 행만 남깁니다.
+# 상관을 계산할 두 변수만 선택하고,
+# 둘 중 하나라도 결측치가 있는 행은 제거합니다.
 sub = df_clean[['prev_height_cm', 'height_cm']].dropna()
 
 # Pearson 상관계수: 두 변수의 '직선(선형)' 관계 강도
-# - r: 상관계수(-1~1), p: p-value
+# - r: 선형 상관계수
+# - p_r: p-value
 r, p_r = stats.pearsonr(sub['prev_height_cm'], sub['height_cm'])
 
 # Spearman 상관계수: 값을 순위로 바꿔 '단조' 관계를 봄
-# - rho: 상관계수(-1~1), p: p-value
+# - rho: 순위 기반 상관계수
+# - p_s: p-value
 rho, p_s = stats.spearmanr(sub['prev_height_cm'], sub['height_cm'])
 
 print(f'Pearson  r={r:.4f}, p={p_r:.2e}')
@@ -477,23 +479,67 @@ print(f'Spearman r={rho:.4f}, p={p_s:.2e}')
 
 ![corr](./imgs/module04/m4_corr.png)
 
-**결과 해석:** Pearson r=0.9482, Spearman r=0.9837로 **둘 다 매우 강한 양의 상관**입니다(둘 다 p≈0, 우연이 아님). 두 값이 모두 높고 비슷하다는 것은, 이전 키와 현재 키의 관계가 **직선 기준으로도, 순위 기준으로도 일관되게 강하다**는 뜻입니다.
+**결과 해석**: Pearson과 Spearman이 모두 1에 가깝고 양수이므로, 이전 키와 현재 키 사이에는 매우 강한 양의 상관이 있습니다.
+또한 두 p-value가 매우 작으므로, 상관이 없다는 귀무가설을 기각합니다.
 
-Spearman이 Pearson보다 약간 높은 것은, 순위 기반이라 극단값의 영향을 덜 받아 "계속 증가하는 경향" 자체를 더 깔끔하게 잡아냈기 때문으로 볼 수 있습니다. 이 강한 상관은 **6장 회귀에서 `prev_height_cm`이 키를 예측하는 가장 강력한 변수가 되는** 근거로 이어집니다.
+즉 이전 키가 큰 개체일수록 현재 키도 큰 경향이 매우 뚜렷합니다.
+Spearman이 Pearson보다 약간 더 큰 것은, 이 관계가 순위 기준으로도 매우 일관되다는 뜻입니다.
+
+단, 상관이 높다고 해서 곧바로 인과관계를 뜻하는 것은 아닙니다.
 
 ## 4-8. 다중회귀 + VIF
 
+::: tip 다중회귀와 VIF란?
+**다중회귀(multiple regression)** 는 **여러 설명변수로 하나의 수치 결과를 예측·설명**하는 선형모델입니다. `키 = b0 + b1×이전키 + b2×물주기 + b3×비료`처럼, 각 변수의 기여를 계수(b)로 나타냅니다.
+
+**왜 하나요?** 지금까지는 변수 하나씩(개화 여부, 종, 이전 키)을 따로 봤습니다. 하지만 실제로는 여러 요인이 **동시에** 키에 영향을 줍니다. 다중회귀는 "다른 변수를 고정했을 때, 이 변수만의 순수한 효과"를 계수로 분리해 보여줍니다.
+
+**VIF(분산팽창인자)란?** 설명변수들끼리 서로 **얼마나 겹치는지(다중공선성)** 를 재는 값입니다. 예를 들어 '이전 키'와 '이전 키+1' 같은 변수를 함께 넣으면 둘이 거의 같아 계수가 불안정해집니다. VIF가 높으면(보통 **5 또는 10 초과**) 그런 겹침이 있다는 신호입니다.
+
+**언제 보나요?** 회귀에 변수를 여러 개 넣을 때, 계수를 믿어도 되는지 확인하는 진단 도구로 함께 계산합니다.
+:::
+
 ```python
+import pandas as pd
 import statsmodels.api as sm
 from statsmodels.stats.outliers_influence import variance_inflation_factor
-X = df_clean[['prev_height_cm','watering_per_week','fertilizer_ml']].dropna()
-model = sm.OLS(y, sm.add_constant(X)).fit()
+
+# 설명변수(X) 3개와 타깃(y=키)을 한 번에 고르고, 결측이 있는 행은 제외합니다.
+# - 같은 data에서 X와 y를 뽑아 두 데이터의 행이 정확히 일치하게 만듭니다.
+data = df_clean[['prev_height_cm', 'watering_per_week', 'fertilizer_ml', 'height_cm']].dropna()
+X = data[['prev_height_cm', 'watering_per_week', 'fertilizer_ml']]
+y = data['height_cm']
+
+# 상수항(절편 b0)을 추가하고 최소제곱(OLS) 회귀를 적합합니다.
+X_const = sm.add_constant(X)
+model = sm.OLS(y, X_const).fit()
+print(model.summary().tables[1])   # 계수(coef)·유의성(P>|t|) 표
+
+# VIF: 각 설명변수가 '나머지 변수들'로 얼마나 설명되는지 계산합니다(다중공선성 진단).
+# - const(절편)는 제외하고, 설명변수 3개만 봅니다(인덱스 i+1).
+vif = pd.DataFrame({
+    '변수': X.columns,
+    'VIF': [variance_inflation_factor(X_const.values, i + 1) for i in range(X.shape[1])]
+})
+print(vif.to_string(index=False))
 ```
 
 ![ols](./imgs/module04/m4_ols.png)
 
+**결과 해석:** 세 변수로 키의 변동을 잘 설명합니다(R²≈0.90). 계수를 보면 `prev_height_cm`의 영향이 압도적입니다 — 계수 약 0.998(t=208)로, **다른 변수를 고정했을 때 이전 키가 1cm 크면 현재 키도 약 1cm 큽니다.** `watering_per_week`(0.66)와 `fertilizer_ml`(0.05)도 통계적으로 유의(p≈0)하지만 계수 크기는 이전 키에 비해 작습니다.
+
+**VIF는 세 변수 모두 약 1.0**입니다. 1에 가깝다는 것은 설명변수들끼리 겹침이 거의 없다는 뜻이라, 각 계수를 **안심하고 해석**할 수 있습니다. 이전 키가 키 예측을 사실상 지배한다는 이 결과는, **6장 회귀에서 단순 선형회귀가 강한 성능을 내는** 이유로 그대로 이어집니다.
+
 ::: warning 범주형은 더미변수로, VIF만 보면 끝 아님
-`species` 같은 범주형을 회귀에 넣으려면 `pd.get_dummies(drop_first=True)`로 더미화해야 합니다. 또 VIF(다중공선성) 외에 잔차 진단(잔차 vs 예측값, Q-Q plot, Breusch-Pagan)도 실전에선 필요합니다.
+`species` 같은 범주형을 회귀에 넣으려면 `pd.get_dummies(drop_first=True)`로 더미화해야 합니다. 또 VIF(다중공선성) 외에 잔차 진단(잔차 vs 예측값, Q-Q plot, Breusch-Pagan)도 실전에서는 함께 필요합니다.
+:::
+
+::: details 더 깊이 — VIF 기준과 회귀계수 읽는 법
+**VIF 대략 기준:** 1이면 겹침 없음 · 5 초과면 주의 · 10 초과면 심각한 다중공선성. 겹침이 심하면 계수의 부호나 크기가 표본에 따라 크게 흔들려 해석이 어려워집니다.
+
+**계수를 읽는 법:** 다중회귀의 계수는 "**나머지 변수를 모두 고정했을 때**, 이 변수 1단위 증가가 타깃을 얼마나 바꾸는지"입니다. 그래서 단순 상관과 달리 다른 변수의 영향을 걷어낸 '순수 기여'로 볼 수 있습니다.
+
+**R²만 보면 안 되는 이유:** R²는 설명력이 높아 보여도, 변수를 많이 넣기만 해도 올라갑니다. 그래서 계수의 유의성·VIF·잔차 진단을 함께 봐야 모델을 신뢰할 수 있습니다.
 :::
 
 ## 4-9. 검정 방법 치트시트

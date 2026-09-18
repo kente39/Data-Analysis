@@ -544,16 +544,20 @@ print(vif.to_string(index=False))
 
 ## 4-9. 검정 방법 치트시트
 
-| 상황 | 함수 |
-|---|---|
-| 정규성 | `stats.shapiro(x)` |
-| 등분산성 | `stats.levene(g1, g2, ...)` |
-| 두 그룹 평균 | `stats.ttest_ind(g1, g2, equal_var=...)` |
-| 세 그룹+ 평균 | `stats.f_oneway(...)` / `pg.welch_anova(...)` |
-| 사후검정 | `pairwise_tukeyhsd(...)` / `pg.pairwise_gameshowell(...)` |
-| 범주형×범주형 | `stats.chi2_contingency(교차표)` |
-| 상관 | `stats.pearsonr` / `stats.spearmanr` |
-| 다중회귀 | `sm.OLS(y, sm.add_constant(X)).fit()` |
+| 상황 | 언제 쓰는지 | 함수 |
+|---|---|---|
+| 정규성 | 데이터가 정규분포를 따르는지 확인 (다른 검정의 전제 점검) | `stats.shapiro(x)` |
+| 등분산성 | 그룹들의 분산이 같은지 확인 (t-검정·ANOVA의 전제 점검) | `stats.levene(g1, g2, ...)` |
+| 두 그룹 평균 | 독립된 **두** 집단의 평균 차이 비교 | `stats.ttest_ind(g1, g2, equal_var=...)` |
+| 세 그룹+ 평균 | **셋 이상** 집단의 평균을 한 번에 비교 | `stats.f_oneway(...)` / `pg.welch_anova(...)` |
+| 사후검정 | ANOVA가 유의할 때 **어느 쌍이** 다른지 확인 | `pairwise_tukeyhsd(...)` / `pg.pairwise_gameshowell(...)` |
+| 범주형×범주형 | 두 **범주형** 변수의 연관성 확인 | `stats.chi2_contingency(교차표)` |
+| 상관 | 두 **수치** 변수의 관계 강도·방향 측정 | `stats.pearsonr` / `stats.spearmanr` |
+| 다중회귀 | **여러** 변수로 하나의 수치 결과를 예측·설명 | `sm.OLS(y, sm.add_constant(X)).fit()` |
+
+::: tip 등분산이 깨졌다면
+`ttest_ind`는 `equal_var=False`(Welch), 세 그룹+는 `welch_anova`, 사후검정은 `pairwise_gameshowell`처럼 **등분산을 가정하지 않는 쪽**을 고릅니다. 이 데이터가 그런 경우였습니다.
+:::
 
 ## 4-10. 종합 결론
 
@@ -562,12 +566,12 @@ print(vif.to_string(index=False))
 | 정규성 | 기각 | 비정규 (오른쪽 왜도) |
 | 등분산성 | 기각 | 종마다 분산 다름 → Welch |
 | t-검정 | p=9.33e-35 | 개화 여부로 키 유의하게 다름 |
-| ANOVA | p≈0 | 종에 따라 키 유의하게 다름 |
+| ANOVA | p=9.94e-181 | 종에 따라 키 유의하게 다름 |
 | Tukey/GH | 14/15쌍 유의 | 거의 모든 종이 구분됨 |
 | 카이제곱 | p=9.10e-11 | 종·개화 연관 있음 |
 | 상관 | r≈0.95 | prev_height_cm이 예측에 특히 중요 |
-| 회귀+VIF | VIF<5 | 다중공선성 없이 안정적 |
+| 회귀+VIF | VIF≈1.0 | 다중공선성 없이 안정적 |
 
 ::: tip 다음 모듈로
-"prev_height_cm이 강력한 예측 변수"는 Module 6 회귀에서 재등장하고, "종·개화 연관성"은 분류 모델의 힌트가 됩니다.
+"prev_height_cm이 강력한 예측 변수"는 [Module 6의 회귀](/module06#_6-3-회귀-모델-4종-비교)에서 재등장하고, "종·개화 연관성"은 분류 모델의 힌트가 됩니다.
 :::

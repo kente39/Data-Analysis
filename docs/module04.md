@@ -426,14 +426,59 @@ print(f'chi2={chi2:.3f}, p-value={p:.2e}, dof={dof}')
 
 ## 4-7. 상관계수 — Pearson vs Spearman
 
+::: tip 상관계수란?
+두 **수치 변수 사이에 함께 변하는 정도**를 하나의 숫자로 나타낸 것입니다. 
+값의 범위는 **-1 ~ +1**입니다.
+
+- **+1에 가까움** — 한쪽이 커질 때 다른 쪽도 커짐(양의 상관)
+- **-1에 가까움** — 한쪽이 커질 때 다른 쪽은 작아짐(음의 상관)
+- **0에 가까움** — 뚜렷한 관계 없음
+
+여기서는 "**이전 키(`prev_height_cm`)가 큰 개체가 지금도 큰가?**"를 상관계수로 확인합니다. 기초통계 7장의 상관 개념을, module03 히트맵에 이어 정식 수치로 검정하는 셈입니다.
+
+::: details 직선 관계 vs 단조 관계, 그리고 두 기법이 무엇인지
+**직선(선형) 관계** — `y ≈ a×x + b`처럼, x가 변할 때 y가 **거의 일정한 비율로** 함께 증가/감소하는 관계입니다. 점들이 하나의 곧은 직선 주변에 모입니다.
+
+**단조(monotonic) 관계** — 꼭 직선일 필요는 없습니다. 곡선이어도, x가 커질수록 y도 **계속 커지기만** 하거나 **계속 작아지기만** 하면 단조 관계입니다.
+
+---
+
+![Pearsonr](./imgs/module04/m4_pearsonr.png)
+**Pearson 상관계수 (Pearson product-moment correlation)**
+두 변수가 함께 변하는 정도인 **공분산**을, 각 변수의 표준편차로 나눠 -1~1 범위로 표준화한 값입니다. 19세기 말 칼 피어슨이 정립한 고전적 방법으로, 통계에서 "상관계수"라고 하면 보통 이것을 가리킵니다. 값 자체를 그대로 쓰기 때문에 **직선 관계를 재는 데 강하지만, 이상치와 비선형에는 민감**합니다.
+
+![spearmanr](./imgs/module04/m4_spearmanr.png)
+**Spearman 순위상관계수 (Spearman's rank correlation)**
+값을 크기 **순위(등수)로 바꾼 뒤** 그 순위에 Pearson을 적용한 것입니다. 찰스 스피어만이 제안했으며, 실제 값 대신 순서만 사용하므로 **곡선 형태의 단조 관계나 이상치가 있어도 안정적**입니다. "정확히 직선인가"보다 "**순위가 함께 오르내리는가**"를 봅니다.
+
+---
+
+**정리하면** — 직선 관계가 의심되고 이상치가 적으면 Pearson, 관계가 곡선이거나 이상치가 있으면 Spearman을 함께 확인하는 것이 안전합니다. 두 값이 비슷하면 관계가 선형에 가깝고, Spearman만 크게 높으면 "직선은 아니지만 꾸준히 증가하는" 관계일 수 있습니다.
+
 ```python
-stats.pearsonr(sub['prev_height_cm'], sub['height_cm'])
-stats.spearmanr(sub['prev_height_cm'], sub['height_cm'])
+from scipy import stats
+
+# 상관을 계산할 두 열만 뽑고, 결측치가 있는 행은 제외합니다.
+# - prev_height_cm에 결측이 있으므로, 두 열이 모두 있는 행만 남깁니다.
+sub = df_clean[['prev_height_cm', 'height_cm']].dropna()
+
+# Pearson 상관계수: 두 변수의 '직선(선형)' 관계 강도
+# - r: 상관계수(-1~1), p: p-value
+r, p_r = stats.pearsonr(sub['prev_height_cm'], sub['height_cm'])
+
+# Spearman 상관계수: 값을 순위로 바꿔 '단조' 관계를 봄
+# - rho: 상관계수(-1~1), p: p-value
+rho, p_s = stats.spearmanr(sub['prev_height_cm'], sub['height_cm'])
+
+print(f'Pearson  r={r:.4f}, p={p_r:.2e}')
+print(f'Spearman r={rho:.4f}, p={p_s:.2e}')
 ```
 
 ![corr](./imgs/module04/m4_corr.png)
 
-Pearson은 직선 관계, Spearman은 단조 관계(꼭 직선 아니어도 한쪽 커질 때 다른 쪽도 커지는지)를 봅니다. 둘 다 높고 비슷하다는 건 관계가 강하고 순위·선형 기준 모두 일관되게 증가한다는 뜻입니다.
+**결과 해석:** Pearson r=0.9482, Spearman r=0.9837로 **둘 다 매우 강한 양의 상관**입니다(둘 다 p≈0, 우연이 아님). 두 값이 모두 높고 비슷하다는 것은, 이전 키와 현재 키의 관계가 **직선 기준으로도, 순위 기준으로도 일관되게 강하다**는 뜻입니다.
+
+Spearman이 Pearson보다 약간 높은 것은, 순위 기반이라 극단값의 영향을 덜 받아 "계속 증가하는 경향" 자체를 더 깔끔하게 잡아냈기 때문으로 볼 수 있습니다. 이 강한 상관은 **6장 회귀에서 `prev_height_cm`이 키를 예측하는 가장 강력한 변수가 되는** 근거로 이어집니다.
 
 ## 4-8. 다중회귀 + VIF
 

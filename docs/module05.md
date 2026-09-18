@@ -49,7 +49,7 @@ input_cols = ['species', 'pot_size', 'light_condition', 'location_type',
               'humidity_pct', 'temperature_c', 'prev_height_cm']
 
 # [3] input을 자료형에 따라 다시 셋으로 나눕니다.
-#     전처리 방법(스케일링/인코딩)이 자료형마다 다르기 때문입니다.
+#  - 전처리 방법(스케일링/인코딩)이 자료형마다 다르기 때문입니다.
 #  - 수치형: 숫자. 스케일링 대상
 num_cols = ['watering_per_week', 'days_since_repot', 'fertilizer_ml',
             'humidity_pct', 'temperature_c', 'prev_height_cm']
@@ -144,22 +144,33 @@ ord_enc = OrdinalEncoder(categories=[['Small', 'Medium', 'Large'],
 ## 5-5. 스케일링 — StandardScaler vs RobustScaler
 
 ::: tip 스케일링이란?
-컬럼마다 **단위와 범위가 제각각**인 것을 비슷한 범위로 맞추는 작업입니다. 이 데이터만 봐도 `prev_height_cm`은 5~154, `watering_per_week`는 0~7로 스케일이 크게 다릅니다.
+컬럼마다 **단위와 범위가 제각각**인 것을 비슷한 범위로 맞추는 작업입니다. 우리가 이번 실습에 쓰는 `plant_growth.csv`만 봐도 `prev_height_cm`은 5~154, `watering_per_week`는 0~7로 스케일이 크게 다릅니다.
 
 **왜 필요한가요?** KNN·선형회귀·신경망처럼 **거리나 가중치**로 계산하는 모델은, 값이 큰 컬럼(예: 키)이 값이 작은 컬럼(예: 물 주기)보다 부당하게 큰 영향을 줍니다. 스케일을 맞추면 모든 특성이 공평하게 반영됩니다. (트리 계열은 스케일 영향이 적습니다.)
+:::
+
+::: tip 두 스케일러의 차이
+- **StandardScaler** — `(값 − 평균) ÷ 표준편차`로 변환해, 평균 0·표준편차 1로 맞춥니다. 가장 일반적이지만 **평균·표준편차가 이상치에 흔들립니다**.
+- **RobustScaler** — 평균 대신 **중앙값**, 표준편차 대신 **IQR**을 씁니다. 이상치의 영향을 가장 적게 받아, **이상치가 심한 데이터에 적합**합니다.
+
+핵심 차이는 "무엇을 기준으로 중심과 퍼짐을 잡느냐"입니다 — 평균·표준편차(이상치에 민감) vs 중앙값·IQR(이상치에 강건).
 :::
 
 ```python
 from sklearn.preprocessing import StandardScaler, RobustScaler
 
-# StandardScaler: (값 - 평균) / 표준편차 → 평균 0, 표준편차 1로 변환
+# StandardScaler: (값 - 평균) / 표준편차 → 평균 0, 표준편차 1
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X[num_cols])
+
+# RobustScaler: (값 - 중앙값) / IQR → 이상치에 덜 흔들림
+# robust = RobustScaler()
+# X_robust = robust.fit_transform(X[num_cols])
 ```
 
 ![scaler](./imgs/module05/m5_scaler.png)
 
-**적용 전/후 비교:** 같은 컬럼들이 스케일링 후 모두 평균≈0, 표준편차≈1로 정렬됩니다.
+**적용 전/후 비교:** 변환 전에는 컬럼마다 크기가 제각각이지만, StandardScaler 적용 후에는 모두 평균≈0, 표준편차≈1로 정렬됩니다.
 
 | 컬럼 | 전(평균) | 전(범위) | 후(평균) | 후(표준편차) |
 |---|---|---|---|---|
@@ -167,7 +178,7 @@ X_scaled = scaler.fit_transform(X[num_cols])
 | `watering_per_week` | 2.2 | 0 ~ 7 | ≈0 | 1.0 |
 | `fertilizer_ml` | 29.5 | 0.4 ~ 150 | ≈0 | 1.0 |
 
-원래는 컬럼마다 크기가 제각각이지만, 변환 후엔 모두 같은 기준(평균 0·표준편차 1) 위에 놓여 서로 비교 가능해집니다.
+**결과 해석:** 스케일링 전에는 `prev_height_cm`(최대 154)이 `watering_per_week`(최대 7)보다 20배 넘게 큰 값이라, 거리·가중치 기반 모델에서 키가 과도한 영향을 줍니다. 스케일링 후에는 세 컬럼이 모두 같은 기준(평균 0·표준편차 1) 위에 놓여, 서로 공평하게 비교·학습됩니다.
 
 ::: warning StandardScaler도 이상치 영향을 받습니다
 "이상치엔 StandardScaler가 안전"은 오해입니다. StandardScaler(평균·표준편차)와 MinMaxScaler(최소·최대) **모두 이상치에 흔들립니다**. 이상치가 심하면 중앙값·IQR 기반의 `RobustScaler`가 더 적합합니다.
@@ -181,22 +192,42 @@ X_scaled = scaler.fit_transform(X[num_cols])
 
 ## 5-6. Pipeline + ColumnTransformer
 
-::: tip 순서형도 스케일링까지
-KNN·선형·신경망은 거리·가중치에 민감하므로 OrdinalEncoder로 바뀐 순서형(0,1,2)도 스케일링해주는 게 일관적입니다.
+::: tip 파이프라인이란?
+지금까지 한 단계들(결측 채우기 → 인코딩 → 스케일링)을 **하나로 묶어, 한 번에 실행**되게 만드는 것입니다.
+
+- **Pipeline** — 여러 처리 단계를 **순서대로** 이어 붙입니다(채우기 → 스케일링처럼).
+- **ColumnTransformer** — 컬럼 종류마다 **다른 파이프라인**을 적용합니다(수치형엔 이 처리, 명목형엔 저 처리).
+
+**왜 묶나요?** ① 단계를 빠뜨리거나 순서를 틀릴 일이 없고, ② train에 맞춘 처리를 test에 **똑같이** 재현할 수 있으며(데이터 누수 방지, 5-7), ③ 한 덩어리라 Module 6에서 모델과 함께 그대로 재사용할 수 있습니다.
 :::
 
 ```python
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
 
-num_pipe = Pipeline([('imputer', SimpleImputer(strategy='median')),
-                     ('scaler', StandardScaler())])
-nom_pipe = Pipeline([('imputer', SimpleImputer(strategy='most_frequent')),
-                     ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))])
-ord_pipe = Pipeline([('imputer', SimpleImputer(strategy='most_frequent')),
-                     ('encoder', OrdinalEncoder(categories=[['Small','Medium','Large'],['Low','Medium','High']])),
-                     ('scaler', StandardScaler())])
+# [1] 수치형: 중앙값으로 채운 뒤 스케일링
+num_pipe = Pipeline([
+    ('imputer', SimpleImputer(strategy='median')),
+    ('scaler', StandardScaler())
+])
 
+# [2] 명목형: 최빈값으로 채운 뒤 OneHot 인코딩
+nom_pipe = Pipeline([
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
+])
+
+# [3] 순서형: 최빈값으로 채운 뒤 Ordinal 인코딩 → 스케일링
+#     (0,1,2로 바뀐 순서값도 거리·가중치 모델을 위해 스케일 맞춤)
+ord_pipe = Pipeline([
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('encoder', OrdinalEncoder(categories=[['Small', 'Medium', 'Large'],
+                                           ['Low', 'Medium', 'High']])),
+    ('scaler', StandardScaler())
+])
+
+# ColumnTransformer: 컬럼 종류별로 위 파이프라인을 각각 적용
+# - 5-2에서 정의한 num_cols / nominal_cols / ordinal_cols를 그대로 사용
 preprocessor = ColumnTransformer([
     ('num', num_pipe, num_cols),
     ('nom', nom_pipe, nominal_cols),
@@ -206,8 +237,21 @@ preprocessor = ColumnTransformer([
 
 ![pipeline](./imgs/module05/m5_pipeline.png)
 
+::: tip 순서형도 스케일링까지
+KNN·선형·신경망은 거리·가중치에 민감하므로, OrdinalEncoder로 바뀐 순서값(0,1,2)도 스케일링해 다른 수치형과 기준을 맞춰줍니다.
+:::
+
+**실사용 예시:** 이렇게 만든 `preprocessor` 하나면, 원본 데이터를 넣는 즉시 결측 채우기·인코딩·스케일링이 자동으로 끝납니다.
+
+```python
+# 원본 X를 넣으면 → 채우기·인코딩·스케일링이 한 번에 실행됨
+X_processed = preprocessor.fit_transform(X)
+```
+
+Module 6에서는 이 `preprocessor` 뒤에 모델만 이어 붙이면(`Pipeline([('prep', preprocessor), ('model', ...)])`) 전처리부터 예측까지 한 줄로 연결됩니다.
+
 ::: info 버전 참고
-`OneHotEncoder(sparse_output=False)`는 sklearn 최신 기준. 구버전은 `sparse=False`. (이 가이드는 1.8.0 검증)
+`OneHotEncoder(sparse_output=False)`는 최신 sklearn 기준입니다. 구버전은 `sparse=False`를 씁니다. (이 가이드는 1.8.0에서 검증)
 :::
 
 ## 5-7. train_test_split — 데이터 누수 주의

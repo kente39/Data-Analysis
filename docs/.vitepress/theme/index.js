@@ -5,6 +5,7 @@ import ProgressTracker from './ProgressTracker.vue'
 import ResumeBanner from './ResumeBanner.vue'
 import Lightbox from './Lightbox.vue'
 import ImageCarousel from './ImageCarousel.vue'
+import Tooltip from '/Tooltip.vue'
 import './custom.css'
 
 export default {
@@ -20,5 +21,6 @@ export default {
   enhanceApp({ app }) {
     // 마크다운 어디서나 <ImageCarousel> 사용 가능하도록 전역 등록
     app.component('ImageCarousel', ImageCarousel)
+    app.component('Tooltip', Tooltip)
   }
 }

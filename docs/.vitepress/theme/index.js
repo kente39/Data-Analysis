@@ -5,7 +5,7 @@ import ProgressTracker from './ProgressTracker.vue'
 import ResumeBanner from './ResumeBanner.vue'
 import Lightbox from './Lightbox.vue'
 import ImageCarousel from './ImageCarousel.vue'
-import Tooltip from '/Tooltip.vue'
+import Tooltip from './Tooltip.vue'
 import './custom.css'
 
 export default {

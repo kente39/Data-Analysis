@@ -179,6 +179,7 @@ for name, pipe in models:
 ```
 
 ![reg](./imgs/module06/m6_reg.png)
+![reg_visual](./imgs/module06/m6_reg_visual.png)
 
 출력된 R² 값을 비교하면, **현재 데이터에서 어떤 모델이 더 잘 작동하는지** 확인할 수 있습니다.  
 다만 한 번의 train/test 분할 결과만으로 단정하면 위험하므로, 다음 절에서 **교차검증**으로 다시 확인합니다.
@@ -192,18 +193,92 @@ for name, pipe in models:
 
 ## 6-4. 교차검증 — KFold (회귀용)
 
-::: tip 회귀는 KFold, 분류는 StratifiedKFold
-분류에서는 클래스 비율을 fold마다 유지하는 `StratifiedKFold`를 씁니다.
+앞에서는 데이터를 한 번 `train/test`로 나누어 성능을 확인했습니다.  
+하지만 이 방법은 **어떻게 나누었는지에 따라 결과가 달라질 수 있다**는 한계가 있습니다.
+
+그래서 사용하는 방법이 **교차검증(cross-validation)** 입니다.  
+교차검증은 데이터를 한 번만 나누지 않고, **여러 번 나누어 반복 평가**하는 방법입니다.
+
+### KFold란?
+
+`KFold`는 데이터를 **K개 조각(fold)** 으로 나눈 뒤,  
+그중 1개는 검증용, 나머지는 학습용으로 사용하고,  
+이 과정을 **K번 반복**하는 방식입니다.
+
+예를 들어 `K=5`라면:
+
+- 1번째 검증: 1번 fold를 검증용으로 사용
+- 2번째 검증: 2번 fold를 검증용으로 사용
+- ...
+- 5번째 검증: 5번 fold를 검증용으로 사용
+
+즉, **모든 데이터가 한 번씩은 검증용으로 사용**됩니다.  
+이렇게 하면 한 번의 우연한 분할에 덜 의존하고, 모델의 **전반적인 안정성**을 더 잘 확인할 수 있습니다.
+
+### 왜 회귀에서는 KFold를 쓸까?
+
+회귀는 목표값이 연속형 수치이므로,  
+보통은 데이터를 여러 조각으로 나누는 `KFold`를 기본으로 사용합니다.
+
+반면 분류에서는 클래스 비율이 fold마다 크게 달라지면 평가가 왜곡될 수 있어서,  
+클래스 비율을 비슷하게 맞춰 주는 `StratifiedKFold`를 더 자주 사용합니다.
+
+::: tip 회귀와 분류의 교차검증 도구
+회귀 → `KFold`  
+분류 → `StratifiedKFold`
 :::
+
+이제 앞에서 만든 `rf_pipe`에 대해 5-fold 교차검증을 해보겠습니다.
 
 ```python
 from sklearn.model_selection import cross_val_score, KFold
-cv = cross_val_score(rf_pipe, X, y, cv=KFold(5, shuffle=True, random_state=42), scoring='r2')
+import numpy as np
+
+# 데이터를 5개 fold로 나누어 교차검증합니다.
+# shuffle=True는 데이터를 섞은 뒤 나누기 위한 옵션입니다.
+# random_state=42는 실행할 때마다 같은 방식으로 섞이게 해 줍니다.
+cv = KFold(n_splits=5, shuffle=True, random_state=42)
+
+# rf_pipe를 5번 평가하고, 각 fold의 R² 점수를 배열로 받습니다.
+scores = cross_val_score(
+    rf_pipe,      # 평가할 파이프라인
+    X,            # 입력 데이터
+    y,            # 목표값
+    cv=cv,        # 교차검증 방식
+    scoring='r2'  # 회귀 성능 지표로 R² 사용
+)
+
+# 각 fold 결과 출력
+print('fold별 R²:', np.round(scores, 4))
+
+# 평균 성능 출력
+print('평균 R²:', round(scores.mean(), 4))
+
+# 점수의 흔들림 정도 출력
+print('표준편차:', round(scores.std(), 4))
 ```
 
 ![cv](./imgs/module06/m6_cv.png)
 
-fold마다 0.78~0.92로 차이. 한 번의 분할 결과만 믿으면 운 좋은 fold를 전체 성능으로 착각할 위험을 보여줍니다.
+### 결과는 어떻게 보나요?
+
+- **각 fold 점수** → 나눔마다 모델 성능이 얼마나 달라지는지
+- **평균 점수** → 전반적인 성능 수준
+- **표준편차** → 결과의 흔들림 정도
+
+예를 들어 fold별 R²가 `0.78 ~ 0.92`처럼 차이가 난다면,  
+모델 성능이 **분할 방식에 따라 꽤 달라질 수 있다**는 뜻입니다.
+
+반대로 점수들이 서로 비슷하다면,  
+그 모델은 **비교적 안정적**이라고 볼 수 있습니다.
+
+### 핵심 해석
+
+교차검증은 “한 번 잘 나온 결과”를 보는 것이 아니라,  
+**여러 번 나누어도 비슷하게 잘 작동하는지** 확인하는 과정입니다.
+
+따라서 모델 비교나 하이퍼파라미터 탐색 전에,  
+먼저 **현재 모델이 안정적인지 점검하는 단계**로 매우 중요합니다.
 
 ## 6-5. 분류 모델 4종 — is_blooming
 

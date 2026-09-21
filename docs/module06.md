@@ -446,48 +446,416 @@ print('표준편차:', round(scores.std(), 4))
 
 ## 6-5. 분류 모델 4종 — is_blooming
 
-::: warning 정보 누수 주의 — height_cm 제외
-height_cm은 개화와 연관되어 성능을 올리지만, **예측 시점에 그 값을 아는지**에 따라 씁니다. 미래 개화를 미리 예측하는데 아직 키를 안 쟀다면 정보 누수입니다. 아래는 안전하게 제외했습니다.
+이번에는 식물의 현재 상태를 보고 **개화 여부(`is_blooming`)를 맞히는 분류 문제**를 다룹니다.
+
+- **타깃(target)**: `is_blooming` — `Y`(개화함) / `N`(개화하지 않음)
+- **문제 유형**: 출력값이 숫자가 아니라 범주(`Y`/`N`)이므로 **분류(classification)** 입니다.
+
+### 왜 `height_cm`를 제외하나요?
+
+`height_cm`는 개화 여부와 연관이 있어 성능을 높일 수 있습니다. 하지만 **예측 시점에 그 값을 이미 알고 있는가**를 먼저 따져야 합니다.
+
+- "현재 측정된 키를 보고 지금 개화했는지 분류"하는 문제라면 사용할 수 있습니다.
+- 하지만 "미래에 개화할지를 미리 예측"하는 문제라면 아직 모를 수 있으므로 **정보 누수(leakage)** 가 됩니다.
+
+이 실습에서는 **안전한 기준**으로 `height_cm`를 제외하고 진행합니다.
+
+::: warning 정보 누수 점검
+모델 성능을 높이는 변수라고 해서 무조건 넣으면 안 됩니다. 항상 **예측 시점에 실제로 사용할 수 있는 정보인가?** 를 먼저 확인하세요.
 :::
 
+### 왜 Accuracy만 보면 안 되나요?
+
+이 데이터는 `N`이 많고 `Y`가 적은 **클래스 불균형(class imbalance)** 상태입니다. 이 경우 모델이 대부분을 `N`으로만 예측해도 Accuracy는 높게 나올 수 있습니다.
+
+예를 들어 전체의 87.8%가 `N`이라면, 아무 생각 없이 **전부 `N`으로 예측**해도 Accuracy는 **87.8%**가 됩니다. 즉 Accuracy가 높아 보여도 실제로는 **개화 식물(`Y`)을 거의 못 찾는 모델**일 수 있습니다.
+
+그래서 이번 비교에서는 Accuracy만이 아니라 다음 지표도 함께 봅니다.
+
+- **Precision(Y)**: `Y`라고 예측한 것 중 실제 `Y`의 비율
+- **Recall(Y)**: 실제 `Y` 중 모델이 찾아낸 비율
+- **F1(Y)**: Precision과 Recall의 균형 점수
+
+### 비교할 4개 분류 모델
+
+전처리 파이프라인 뒤에 분류 모델 4개를 붙여 비교합니다.
+
+- **LogisticRegression** — 분류용 선형 모델. 각 특성이 개화(`Y`) 확률에 주는 영향을 선형적으로 학습합니다. 해석이 쉽고 기준선 모델로 좋습니다.
+- **KNeighborsClassifier** — 가까운 이웃 샘플들의 다수결로 분류합니다. 주변 데이터 구조를 반영하지만 스케일·거리 계산에 민감합니다.
+- **DecisionTreeClassifier** — 질문을 단계적으로 나누며 분류합니다. 규칙이 직관적이지만 단일 트리는 과적합되기 쉽습니다.
+- **RandomForestClassifier** — 여러 트리를 만들어 투표로 예측합니다. 단일 트리보다 일반화 성능이 좋은 경우가 많습니다.
+
+### 코드 절차와 주석
+
+아래 코드는 ① 분류용 입력/출력을 준비하고 ② 데이터 비율을 유지하도록 분할한 뒤 ③ 4개 모델을 같은 방식으로 학습·평가하는 절차입니다.
+
 ```python
+import pandas as pd
+
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+# --------------------------------------------------
+# 1. 분류 문제용 입력(X) / 출력(y) 준비
+# --------------------------------------------------
+# 타깃은 is_blooming (Y/N)
+y_cls = df['is_blooming']
+
+# 입력에서 제외하는 컬럼:
+# - is_blooming : 타깃 자신
+# - height_cm   : 정보 누수 방지(예측 시점에 모를 수 있는 값)
+# - plant_id    : 개체 번호라 예측에 의미 없는 식별자
+X_cls = df.drop(columns=['is_blooming', 'height_cm', 'plant_id'])
+
+# --------------------------------------------------
+# 2. 학습/평가 데이터 분할
+# --------------------------------------------------
+# stratify=y_cls : train/test에 Y/N 비율을 비슷하게 유지(불균형 데이터에 중요)
+Xc_train, Xc_test, yc_train, yc_test = train_test_split(
+    X_cls, y_cls,
+    test_size=0.2,
+    random_state=42,
+    stratify=y_cls
+)
+
+# --------------------------------------------------
+# 3. 분류용 전처리기 정의
+# --------------------------------------------------
+# X_cls 기준으로 수치형/범주형 컬럼을 자동으로 나눕니다.
+num_cols_c = X_cls.select_dtypes(include='number').columns.tolist()
+cat_cols_c = X_cls.select_dtypes(exclude='number').columns.tolist()
+
+# 수치형: 중앙값으로 채운 뒤 표준화
+# 범주형: 최빈값으로 채운 뒤 OneHot 인코딩(handle_unknown='ignore'로 미등장 범주 안전 처리)
+preprocessor_c = ColumnTransformer([
+    ('num', Pipeline([
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', StandardScaler())
+    ]), num_cols_c),
+    ('cat', Pipeline([
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('encoder', OneHotEncoder(handle_unknown='ignore'))
+    ]), cat_cols_c),
+])
+
+# --------------------------------------------------
+# 4. 모델 4개 정의 (같은 전처리기를 붙여 조건을 공정하게)
+# --------------------------------------------------
 lr_clf = Pipeline([('prep', preprocessor_c), ('model', LogisticRegression(max_iter=1000))])
-# ... KNN, DecisionTree, RandomForest 동일 패턴
+knn_clf = Pipeline([('prep', preprocessor_c), ('model', KNeighborsClassifier(n_neighbors=5))])
+dt_clf = Pipeline([('prep', preprocessor_c), ('model', DecisionTreeClassifier(random_state=42))])
+rf_clf = Pipeline([('prep', preprocessor_c), ('model', RandomForestClassifier(n_estimators=200, random_state=42))])
+
+models = [
+    ('LogisticRegression', lr_clf),
+    ('KNN', knn_clf),
+    ('DecisionTree', dt_clf),
+    ('RandomForest', rf_clf)
+]
+
+# --------------------------------------------------
+# 5. 클래스 비율 먼저 확인 (왜 Accuracy만 보면 안 되는지)
+# --------------------------------------------------
+print('전체 클래스 비율')
+print(y_cls.value_counts(normalize=True).round(4))
+print()
+
+# --------------------------------------------------
+# 6. 모델 학습 및 평가
+# --------------------------------------------------
+# pos_label='Y' : 개화 식물(Y)을 양성 클래스로 두고 지표 계산
+results = []
+
+for name, pipe in models:
+    pipe.fit(Xc_train, yc_train)
+    pred = pipe.predict(Xc_test)
+
+    results.append({
+        'Model': name,
+        'Accuracy': round(accuracy_score(yc_test, pred), 4),
+        'Precision_Y': round(precision_score(yc_test, pred, pos_label='Y', zero_division=0), 4),
+        'Recall_Y': round(recall_score(yc_test, pred, pos_label='Y', zero_division=0), 4),
+        'F1_Y': round(f1_score(yc_test, pred, pos_label='Y', zero_division=0), 4)
+    })
+
+result_df = pd.DataFrame(results)
+
+# 소수 클래스(Y)를 얼마나 찾는지 보기 위해 Recall_Y 기준 정렬
+result_df = result_df.sort_values(['Recall_Y', 'F1_Y'], ascending=False)
+
+print(result_df)
 ```
 
-![clf](./imgs/module06/m6_clf.png)
+![분류 4종 결과](./imgs/module06/m6_clf.png)
+
+### 결과 표를 해석할 때 보는 순서
+
+1. **Accuracy** — 전체적으로 맞힌 비율. 단, 불균형 데이터에서는 단독 해석 금지
+2. **Recall_Y** — 실제 개화 식물을 얼마나 놓치지 않았는가. 이번 문제에서 매우 중요
+3. **Precision_Y** — 개화라고 예측한 것 중 진짜 개화의 비율. Recall만 높이면 오탐이 늘 수 있어 함께 봐야 함
+4. **F1_Y** — Precision과 Recall의 균형. 소수 클래스 성능을 한 번에 비교할 때 유용
+
+### 실행 결과 해석
+
+**① Accuracy는 다 비슷하게 높게 보일 수 있습니다.** 모델들이 대개 0.80~0.88 수준의 Accuracy를 보입니다. 하지만 원래 `N`이 훨씬 많아 `N` 위주로 예측해도 Accuracy가 높아지므로, **높은 Accuracy가 곧 좋은 분류 성능을 뜻하지는 않습니다.**
+
+**② 핵심은 Recall(Y)입니다.** 실제로는 `Recall(Y)`가 **대부분 0.1 미만**으로 매우 낮게 나옵니다(단순 트리 모델은 0.2 안팎으로 조금 높게 나오기도 합니다). 이 뜻은 실제 개화 식물 100개가 있어도 모델이 그중 **10개 안팎만 찾아낸다**는 의미입니다. 즉 Accuracy는 높아 보여도 정작 중요한 **개화 식물 탐지에는 거의 실패**하고 있을 수 있습니다.
+
+**③ 분류 모델 비교의 관점을 바꿔야 합니다.** 따라서 "정확도가 가장 높은 모델"보다도, `Y`를 얼마나 놓치지 않는지 · `Y` 예측이 얼마나 믿을 만한지 · Precision과 Recall의 균형이 어떤지를 중심으로 봐야 합니다.
 
 ::: warning Accuracy 함정
-"무조건 N만 찍어도" Accuracy 87.8%가 나옵니다. 모든 모델 Accuracy는 87~88%로 높아 보이지만 Recall(Y)은 4~9%로 매우 낮습니다 — 개화 식물을 거의 놓치고 있다는 뜻입니다.
+불균형 데이터에서 Accuracy만 보면 "무조건 다수 클래스만 찍는 모델"도 좋아 보일 수 있습니다. 그래서 분류에서는 **무엇을 맞히고 싶은지**를 먼저 정하고, 그에 맞는 지표를 골라야 합니다.
 :::
 
-## 6-6. 혼동행렬
+이 한계를 더 분명히 확인하려면 **혼동행렬(confusion matrix)** 이 필요합니다 — 실제 `Y`를 몇 개 맞혔는지, 몇 개 놓쳤는지, 실제 `N`을 몇 개 `Y`로 잘못 예측했는지를 칸으로 직접 보여주기 때문입니다. 그래서 다음 절 **6-6**에서 각 모델의 예측을 혼동행렬과 `classification_report`로 더 자세히 확인합니다.
+
+## 6-6. 혼동행렬(Confusion Matrix)
+
+6-5에서 Accuracy·Precision·Recall·F1을 비교했다면, 이번에는 **혼동행렬(confusion matrix)** 로 모델이 *어떤 종류의 실수*를 하는지 직접 확인합니다. 단순히 "몇 % 맞았는가"만 보는 것은 부족하고, 특히 `Y`가 적고 `N`이 많은 **불균형 데이터**에서는 더 그렇습니다.
+
+### 혼동행렬이란?
+
+혼동행렬은 **실제값**과 **예측값**을 표로 비교한 것입니다. 이번 실습은 `Y`(개화함)를 중요하게 보므로 `labels=['Y', 'N']`로 지정합니다. 그러면 각 칸의 의미는 다음과 같습니다.
+
+| 실제 \ 예측 | Y | N |
+|---|---:|---:|
+| **Y** | 실제 Y를 Y로 맞힘 `[0,0]` | 실제 Y를 N으로 놓침 `[0,1]` |
+| **N** | 실제 N을 Y로 잘못 예측 `[1,0]` | 실제 N을 N으로 맞힘 `[1,1]` |
+
+- `[0,0]` 개화 식물을 제대로 찾은 수
+- `[0,1]` 개화 식물을 놓친 수 → 클수록 **Recall(Y) 낮음**
+- `[1,0]` 개화 안 했는데 개화로 잘못 판단한 수(오탐)
+- `[1,1]` 개화 안 한 식물을 제대로 맞힌 수
+
+### 왜 혼동행렬이 중요한가?
+
+Accuracy가 높아도, 실제 `Y`를 거의 못 맞히고 대부분 `N`으로만 예측했다면 실전에서는 쓸모가 적습니다. 혼동행렬은 이런 상황을 한눈에 드러냅니다.
+
+### classification_report도 함께 보는 이유
+
+`classification_report`는 혼동행렬을 바탕으로 각 클래스의 Precision·Recall·F1-score·support(실제 개수)를 정리해 줍니다. 즉 **혼동행렬은 실수의 구조를 직관적으로**, **classification_report는 지표를 숫자로** 보여주는 역할입니다.
+
+### 코드 절차와 주석
+
+아래 코드는 6-5에서 만든 4개 분류 모델 각각에 대해 혼동행렬과 분류 리포트를 출력하고 heatmap으로 시각화합니다.
 
 ```python
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.metrics import confusion_matrix, classification_report
-print(confusion_matrix(y_test, pred, labels=['Y','N']))
-print(classification_report(y_test, pred))
+
+# 6-5에서 만든 models = [('LogisticRegression', lr_clf), ('KNN', knn_clf),
+#                        ('DecisionTree', dt_clf), ('RandomForest', rf_clf)] 를 그대로 사용
+for name, pipe in models:
+    pipe.fit(Xc_train, yc_train)
+    pred = pipe.predict(Xc_test)
+
+    # labels=['Y','N']로 고정해 '개화(Y)'를 먼저 보도록 설정
+    cm = confusion_matrix(yc_test, pred, labels=['Y', 'N'])
+    print(f'\n===== {name} =====')
+    print('Confusion Matrix [labels = Y, N]')
+    print(cm)
+    print('\nClassification Report')
+    print(classification_report(yc_test, pred, labels=['Y', 'N'], zero_division=0))
+
+    # heatmap 시각화
+    plt.figure(figsize=(5, 4))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+                xticklabels=['Pred Y', 'Pred N'],
+                yticklabels=['True Y', 'True N'])
+    plt.title(f'Confusion Matrix - {name}')
+    plt.xlabel('Predicted Label'); plt.ylabel('True Label')
+    plt.tight_layout()
+    plt.show()
 ```
 
-![confusion](./imgs/module06/m6_confusion.png)
+아래는 대표 모델(RandomForest)의 실제 출력입니다.
+
+![RandomForest 혼동행렬·분류 리포트](./imgs/module06/m6_confusion.png)
+
+### 실행 결과 해석
+
+혼동행렬 `[[12 110], [9 869]]`을 `labels=['Y','N']` 기준으로 읽으면:
+
+- **12** — 실제 `Y`를 `Y`로 맞힘
+- **110** — 실제 `Y`를 `N`으로 **놓침**
+- **9** — 실제 `N`을 `Y`로 잘못 예측
+- **869** — 실제 `N`을 `N`으로 맞힘
+
+전형적인 불균형 패턴입니다. **오른쪽 아래(869)** 가 매우 커서 다수 클래스 `N`은 잘 처리하고 Accuracy도 0.88로 높아 보입니다. 하지만 정작 중요한 **왼쪽 위(12)** 는 작고, **실제 Y 122개 중 110개를 놓쳤습니다** → 이것이 classification_report의 낮은 `Recall(Y)=0.10`으로 나타납니다.
+
+즉 이 모델은 **안전하게 `N` 위주로만 예측**하고 있어, "개화 식물을 잘 찾는가?"라는 이번 문제의 목적에는 미흡합니다. 다음 절 6-7에서 이 한계를 완화하는 **불균형 대응 지표(balanced accuracy, PR AUC)** 와 **임계값 조정**을 다룹니다.
+
+::: tip 이번 절에서 꼭 확인할 점
+혼동행렬을 볼 때는 전체 Accuracy보다 **실제 Y를 얼마나 놓쳤는지(`[0,1]`)** 를 먼저 보세요. 이번 문제의 핵심은 "개화 식물을 잘 찾는가?"이기 때문입니다.
+:::
 
 ## 6-7. 불균형 대응 — balanced accuracy, PR AUC, 임계값 조정
 
+6-6의 혼동행렬로 이번 분류 문제의 한계가 분명해졌습니다 — Accuracy는 높아 보이지만 실제 개화 식물(`Y`)은 대부분 놓칩니다. 이럴 때는 **불균형 데이터에 맞는 평가 방법**과 **소수 클래스를 더 잘 잡는 전략**이 필요합니다.
+
+### ① Balanced Accuracy
+
+Balanced Accuracy는 **각 클래스별 Recall의 평균**입니다. `Y`를 얼마나 잘 찾는지와 `N`을 얼마나 잘 찾는지를 **동등한 비중**으로 반영합니다.
+
+일반 Accuracy는 `N`이 많으면 `N`만 잘 맞혀도 높아지지만, Balanced Accuracy는 그 착시를 줄여 "양쪽 클래스를 균형 있게 맞히는가?"를 보여줍니다.
+
+### ② PR AUC (Average Precision)
+
+PR AUC는 **Precision-Recall 곡선 아래 면적**으로, `average_precision_score`로 계산합니다. 불균형 데이터에서는 ROC AUC가 괜찮아 보여도 소수 클래스(`Y`) 탐지력은 가려질 수 있는데, PR AUC는 "`Y`를 얼마나 잘 찾고, `Y` 예측이 얼마나 믿을 만한지"를 더 직접 반영합니다. 그래서 "개화 식물을 찾는 것"이 중요한 이번 문제에서 더 실전적인 지표입니다.
+
+### ③ class_weight='balanced'
+
+모델 학습 단계에서부터 소수 클래스에 더 신경 쓰게 하려면 `class_weight='balanced'`를 쓸 수 있습니다. 클래스 빈도에 따라 자동으로 가중치를 조정해 적은 클래스(`Y`)를 더 중요하게 취급합니다.
+
+::: warning class_weight가 항상 개선하지는 않습니다
+`class_weight='balanced'`는 만능이 아닙니다. 뒤 결과에서 보듯, 이 데이터의 RandomForest에서는 오히려 Recall·Balanced Accuracy가 **약간 낮아집니다**. 모델·데이터에 따라 효과가 다르므로 **반드시 여러 지표로 비교**하고, 안 통하면 다음의 임계값 조정 같은 다른 지렛대를 써야 합니다.
+:::
+
+### ④ 임계값 조정(Threshold Tuning)
+
+분류 모델은 `predict_proba()`로 확률을 출력하고 기본적으로 **0.5 이상이면 양성(`Y`)** 으로 분류합니다. 하지만 불균형 데이터에서 이 0.5는 너무 보수적일 수 있습니다. 예를 들어 `Y`일 확률이 0.32면 기본 기준으로는 `N`이지만, `Y`를 놓치지 않는 게 더 중요하다면 기준을 **0.3, 0.2로 낮춰** 더 적극적으로 `Y`를 잡을 수 있습니다.
+
+임계값을 낮추면 보통 **Recall(Y)은 올라가고 Precision(Y)은 내려갑니다** — 더 많이 잡는 대신 더 많이 틀리는 **트레이드오프**입니다.
+
+### 코드 절차와 주석
+
+기본 RF와 `class_weight='balanced'` RF를 만들고, Accuracy·Balanced Accuracy·PR AUC로 비교합니다.
+
 ```python
-from sklearn.metrics import balanced_accuracy_score, average_precision_score
-# class_weight='balanced'로 소수 클래스에 가중치
-rf_balanced = RandomForestClassifier(n_estimators=200, class_weight='balanced', random_state=42)
+import numpy as np
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import (accuracy_score, balanced_accuracy_score,
+    precision_score, recall_score, f1_score, average_precision_score)
+
+# 기본 RF와 class_weight='balanced' RF (전처리기는 6-5의 preprocessor_c 재사용)
+rf_base = Pipeline([('prep', preprocessor_c),
+                    ('model', RandomForestClassifier(n_estimators=200, random_state=42))])
+rf_balanced = Pipeline([('prep', preprocessor_c),
+                        ('model', RandomForestClassifier(n_estimators=200,
+                                                         class_weight='balanced', random_state=42))])
+rf_base.fit(Xc_train, yc_train)
+rf_balanced.fit(Xc_train, yc_train)
+
+# 클래스 순서를 확인해 Y의 확률 열을 고릅니다.
+bal_classes = rf_balanced.named_steps['model'].classes_
+bal_y_idx = list(bal_classes).index('Y')
+bal_y_proba = rf_balanced.predict_proba(Xc_test)[:, bal_y_idx]
+base_y_proba = rf_base.predict_proba(Xc_test)[:, list(rf_base.named_steps['model'].classes_).index('Y')]
+
+def evaluate(y_true, y_pred, y_proba, name):
+    return {
+        'Model': name,
+        'Accuracy': round(accuracy_score(y_true, y_pred), 4),
+        'Balanced_Accuracy': round(balanced_accuracy_score(y_true, y_pred), 4),
+        'Recall_Y': round(recall_score(y_true, y_pred, pos_label='Y', zero_division=0), 4),
+        'PR_AUC': round(average_precision_score((y_true == 'Y').astype(int), y_proba), 4)
+    }
+
+import pandas as pd
+compare_df = pd.DataFrame([
+    evaluate(yc_test, rf_base.predict(Xc_test), base_y_proba, 'RF_base'),
+    evaluate(yc_test, rf_balanced.predict(Xc_test), bal_y_proba, 'RF_balanced')
+])
+print(compare_df)
 ```
 
-![imbalance](./imgs/module06/m6_imbalance.png)
+![base vs balanced 비교](./imgs/module06/m6_imbalance.png)
 
-임계값을 0.5→0.2로 낮추면 Recall이 4%→46%로 오르지만 Precision은 떨어지는 트레이드오프가 뚜렷합니다.
+### 실행 결과 해석 ① — class_weight는 이 데이터에서 도움이 안 됐습니다
 
-| 지표 | 의미 |
-|---|---|
-| Balanced Accuracy | 클래스별 재현율 평균 (비율 보정) |
-| PR AUC | 불균형에서 소수 클래스 탐지 성능 |
-| 임계값 조정 | 0.5 낮추면 Recall↑ Precision↓ |
+| 지표 | RF_base | RF_balanced |
+|---|---|---|
+| Accuracy | 0.881 | 0.877 |
+| Balanced Accuracy | **0.544** | 0.521 |
+| Recall(Y) | **0.098** | 0.049 |
+| PR AUC | **0.273** | 0.256 |
+
+`class_weight='balanced'`가 오히려 Recall·Balanced Accuracy·PR AUC를 **약간 낮췄습니다**. RandomForest는 부트스트랩 샘플링을 쓰기 때문에 클래스 가중치 효과가 약하거나 이렇게 역효과가 나기도 합니다. 이것이 앞의 경고처럼 "**항상 통하는 방법은 없다**"는 실제 사례이고, 그래서 다음의 **임계값 조정**이 이 문제에선 더 확실한 지렛대가 됩니다.
+
+### 임계값을 낮춰 Recall을 높여 보기
+
+같은 `bal_y_proba`(Y일 확률)에 여러 임계값을 적용해 Precision·Recall이 어떻게 변하는지 봅니다.
+
+```python
+def predict_with_threshold(y_prob, threshold=0.5):
+    return np.where(y_prob >= threshold, 'Y', 'N')
+
+rows = []
+for th in [0.5, 0.4, 0.3, 0.2, 0.1]:
+    pred_th = predict_with_threshold(bal_y_proba, threshold=th)
+    rows.append({
+        'threshold': th,
+        'Precision_Y': round(precision_score(yc_test, pred_th, pos_label='Y', zero_division=0), 4),
+        'Recall_Y': round(recall_score(yc_test, pred_th, pos_label='Y', zero_division=0), 4),
+        'F1_Y': round(f1_score(yc_test, pred_th, pos_label='Y', zero_division=0), 4),
+        'Balanced_Accuracy': round(balanced_accuracy_score(yc_test, pred_th), 4)
+    })
+print(pd.DataFrame(rows))
+```
+
+![임계값별 성능](./imgs/module06/m6_threshold.png)
+
+### 실행 결과 해석 ② — 임계값을 낮추면 Recall이 크게 오릅니다
+
+이 절의 가장 중요한 실전 포인트입니다. 기본 기준 0.5에서는 `Recall(Y)`가 0.057로 거의 못 찾지만, **0.2로 낮추면 0.443까지 오릅니다**(0.1이면 0.730). 모델이 원래도 `Y` 가능성을 어느 정도 계산하고 있었지만, **기준 0.5가 너무 높아 `Y`로 잘 선언하지 않았던 것**입니다 — 즉 모델보다 판정 기준이 보수적이었습니다.
+
+대신 **Precision은 0.500 → 0.262로 떨어집니다.** 더 많은 샘플을 `Y`로 분류하면서 실제 `N`까지 `Y`로 잡는 경우가 늘기 때문이며, 이는 임계값 조정의 자연스러운 트레이드오프입니다. Balanced Accuracy는 0.525 → 0.635로 오르므로, "양쪽을 균형 있게" 보는 관점에선 개선입니다.
+
+### PR Curve로 함께 보기
+
+PR AUC를 숫자만이 아니라 곡선으로도 확인합니다.
+
+```python
+import matplotlib.pyplot as plt
+from sklearn.metrics import precision_recall_curve, average_precision_score
+
+y_true_binary = (yc_test == 'Y').astype(int)
+precision, recall, thresholds = precision_recall_curve(y_true_binary, bal_y_proba)
+ap_score = average_precision_score(y_true_binary, bal_y_proba)
+
+plt.figure(figsize=(6, 4))
+plt.plot(recall, precision, label=f'PR Curve (AP={ap_score:.4f})')
+plt.xlabel('Recall'); plt.ylabel('Precision')
+plt.title('Precision-Recall Curve')
+plt.legend(); plt.grid(alpha=0.3)
+plt.tight_layout()
+plt.show()
+```
+
+![Precision-Recall Curve](./imgs/module06/m6_prcurve.png)
+
+### 어떤 threshold가 좋은가는 목적에 따라 다릅니다
+
+정답은 하나가 아닙니다.
+
+- **개화 식물을 놓치면 안 되는 경우** — Recall을 중시 → 임계값을 낮추는 방향이 유리
+- **개화라고 잘못 알리면 비용이 큰 경우** — Precision을 중시 → 임계값을 너무 낮추지 않는 것이 유리
+
+즉 임계값은 "무조건 0.5"가 아니라 **문제의 목적과 비용 구조에 맞춰 정하는 값**입니다.
+
+### 이번 절의 핵심 결론
+
+이 데이터에서는 기본 Accuracy만으로 모델 성능을 판단하기 어렵습니다. 그래서 관점 전환이 필요합니다.
+
+- **Accuracy 중심 → Balanced Accuracy / Recall / PR AUC 중심**
+- **기본 threshold 0.5 고정 → 목적에 맞는 threshold 조정**
+- **class_weight 시도 → 단, 효과는 반드시 검증(이 데이터에선 RF에 도움 안 됨)**
+
+::: tip 이번 절에서 꼭 기억할 점
+불균형 분류에서는 모델을 바꾸는 것만큼이나 **평가 지표를 바르게 고르는 것**과 **임계값을 목적에 맞게 조정하는 것**이 중요합니다. 그리고 `class_weight='balanced'` 같은 옵션도 **효과를 실제로 확인한 뒤** 채택해야 합니다.
+:::
 
 ## 6-8. GridSearchCV
 

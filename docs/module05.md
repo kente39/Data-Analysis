@@ -313,9 +313,9 @@ print(f'전처리 후 test  특성 수: {X_test_processed.shape[1]}개')
 
 | 컬럼 종류 | 처리 순서 | 결과 |
 |---|---|---|
-| <Tooltip content="watering_per_week, days_since_repot, fertilizer_ml, humidity_pct, temperature_c, prev_height_cm">수치형(6개)</Tooltip> | 중앙값 채우기 → 표준화 | train 기준으로 스케일링된 6개 특성 |
-| <Tooltip content="species, location_type">명목형(2개)</Tooltip> | 최빈값 채우기 → OneHot | 여러 개의 0/1 열로 확장 |
-| <Tooltip content="pot_size, light_condition">순서형(2개)</Tooltip> | 최빈값 채우기 → Ordinal → 표준화 | 순서를 반영한 연속형 값 2개 |
+| <Tooltip content="watering_per_week(주당 물주기 횟수), days_since_repot(분갈이 후 경과일), fertilizer_ml(비료량 ml), humidity_pct(습도 %), temperature_c(온도 ℃), prev_height_cm(이전 키 cm)">수치형(6개)</Tooltip> | 중앙값 채우기 → 표준화 | train 기준으로 스케일링된 6개 특성 |
+| <Tooltip content="species(품종), location_type(배치 장소)">명목형(2개)</Tooltip> | 최빈값 채우기 → OneHot | 여러 개의 0/1 열로 확장 |
+| <Tooltip content="pot_size(화분 크기), light_condition(채광 조건)">순서형(2개)</Tooltip> | 최빈값 채우기 → Ordinal → 표준화 | 순서를 반영한 연속형 값 2개 |
 
 이번 데이터에서는 원본 입력 **10개 컬럼이 전처리 후 16개 특성**으로 바뀝니다. 다만 최종 특성 수는 **범주형 변수에 실제로 등장한 범주 수**에 따라 달라질 수 있습니다. test에 train에 없던 범주가 나타나도, 5-6의 `handle_unknown='ignore'` 덕분에 오류 없이 처리되어 train·test의 특성 수가 어긋나지 않습니다.
 

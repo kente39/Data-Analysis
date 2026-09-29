@@ -859,21 +859,223 @@ plt.show()
 
 ## 6-8. GridSearchCV
 
+6-3의 회귀 결과에서 현재 최고 성능은 **LinearRegression(R²=0.8673)** 입니다.
+
+- Linear: R²=0.8673
+- RandomForest: R²=0.8542
+- DecisionTree: R²=0.8157
+- KNN: R²=0.7194
+
+트리 계열 중에서는 RandomForest가 가장 좋지만 **아직 Linear보다 약간 낮습니다.** 이번 절에서는 RandomForest의 하이퍼파라미터를 조정해 성능을 더 끌어올릴 수 있는지 확인합니다.
+
+### GridSearchCV란?
+
+`GridSearchCV`는 여러 하이퍼파라미터 조합을 자동으로 시험해 보고, **교차검증 점수가 가장 좋은 조합**을 찾아주는 도구입니다. RandomForest에서는 예를 들어 다음을 조정할 수 있습니다.
+
+- `n_estimators` 트리 개수
+- `max_depth` 트리 최대 깊이
+- `min_samples_split` 분할에 필요한 최소 샘플 수
+- `min_samples_leaf` 리프 노드의 최소 샘플 수
+
+파이프라인 안 모델의 파라미터를 바꿀 때는 반드시 **`model__파라미터명`** 형식을 씁니다(`model`은 파이프라인에서 모델 단계에 붙인 이름).
+
 ```python
-from sklearn.model_selection import GridSearchCV
-param_grid = {'model__n_estimators': [100, 200], 'model__max_depth': [5, 10, None]}
-grid = GridSearchCV(rf_pipe, param_grid, cv=3, scoring='r2', n_jobs=-1)
+from sklearn.model_selection import GridSearchCV, KFold
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import numpy as np
+
+# RandomForest 회귀 파이프라인 (전처리기는 Module 5의 preprocessor 재사용)
+rf_pipe = Pipeline([
+    ('prep', preprocessor),
+    ('model', RandomForestRegressor(random_state=42))
+])
+
+# 탐색할 하이퍼파라미터 조합 (2×3×2×2 = 24가지)
+param_grid = {
+    'model__n_estimators': [100, 200],
+    'model__max_depth': [5, 10, None],
+    'model__min_samples_split': [2, 5],
+    'model__min_samples_leaf': [1, 2]
+}
+
+# 3-fold 교차검증으로 R² 기준 탐색
+grid = GridSearchCV(
+    estimator=rf_pipe,
+    param_grid=param_grid,
+    cv=KFold(n_splits=3, shuffle=True, random_state=42),
+    scoring='r2',
+    n_jobs=-1
+)
 grid.fit(X_train, y_train)
+
+print('Best Params:', grid.best_params_)
+print('Best CV R2 :', round(grid.best_score_, 4))
+
+# 최적 조합으로 테스트 성능 평가
+best_model = grid.best_estimator_
+pred = best_model.predict(X_test)
+
+mae = mean_absolute_error(y_test, pred)
+# 최신 scikit-learn에는 squared=False 옵션이 없으므로 np.sqrt로 RMSE를 구합니다.
+rmse = np.sqrt(mean_squared_error(y_test, pred))
+r2 = r2_score(y_test, pred)
+
+print('Test MAE  =', round(mae, 3))
+print('Test RMSE =', round(rmse, 3))
+print('Test R2   =', round(r2, 4))
 ```
 
-![grid](./imgs/module06/m6_grid.png)
+![GridSearchCV 결과](./imgs/module06/m6_grid.png)
 
-max_depth를 제한 없이(None) 키운 것보다 얕게(5) 제한한 게 더 좋았습니다 — 과적합 방지 원칙이 실제로 확인된 사례입니다. (파라미터 앞 `model__`은 Pipeline 단계명 문법)
+탐색 결과를 표로 자세히 보고 싶다면:
+
+```python
+import pandas as pd
+
+results = pd.DataFrame(grid.cv_results_)
+cols = [
+    'mean_test_score', 'std_test_score',
+    'param_model__n_estimators', 'param_model__max_depth',
+    'param_model__min_samples_split', 'param_model__min_samples_leaf',
+    'rank_test_score'
+]
+print(results[cols].sort_values('rank_test_score').head(10))
+```
+
+::: warning `squared=False`는 최신 버전에서 제거됐습니다
+예전 코드의 `mean_squared_error(y_test, pred, squared=False)`는 최신 scikit-learn(1.4+)에서 **오류가 납니다**. RMSE는 위처럼 `np.sqrt(mean_squared_error(...))`로 구하세요.
+:::
+
+### 결과 해석
+
+GridSearchCV의 핵심 출력은 셋입니다 — `best_params_`(가장 좋았던 조합), `best_score_`(교차검증 평균 점수), `best_estimator_`(그 조합으로 다시 구성된 모델).
+
+이번 탐색의 최적 조합은 **`max_depth=10`, `min_samples_leaf=2`, `min_samples_split=5`, `n_estimators=200`** 이었고, 교차검증 R²는 약 0.861입니다. `max_depth`가 `None`(무제한)이 아니라 10에서 멈췄다는 것은, 트리를 제한 없이 깊게 키우는 것보다 **적당히 제한한 모델이 일반화에 더 유리했다**는 뜻입니다(과적합 방지).
+
+하지만 튜닝한 RandomForest의 테스트 R²는 약 **0.853**으로, 여전히 **LinearRegression(0.8673)을 넘지 못합니다.** 이 데이터는 `prev_height_cm`과 `height_cm`의 관계가 매우 강한 선형 구조라, 복잡한 트리 모델보다 단순한 선형모델이 더 잘 맞기 때문입니다. 즉 **튜닝이 항상 승리를 보장하지는 않습니다.**
+
+::: tip 이번 절의 핵심
+하이퍼파라미터 튜닝은 중요하지만, **복잡한 모델 + 튜닝**이 항상 **단순한 모델**보다 좋은 것은 아닙니다. GridSearchCV는 "무조건 최고 성능 만들기"보다 **어떤 설정이 과적합을 줄이고, 어떤 모델이 데이터 구조에 맞는지 확인하는 과정**으로 이해하는 것이 좋습니다.
+:::
 
 ## 6-9. Feature Importance
 
+6-8에서는 `GridSearchCV`로 RandomForest를 튜닝했습니다. 이번에는 그 모델이 **어떤 변수를 중요하게 사용했는지** 확인합니다.
+
+한 가지 짚을 점이 있습니다. 이번 회귀 문제에서 **예측 성능 자체는 LinearRegression이 가장 좋았지만**, `feature_importances_`는 **트리 계열 모델**에서만 제공되는 해석 도구입니다. 따라서 이 절은 "가장 정확한 모델이 무엇인가"보다 **"트리 모델이 어떤 입력을 중심으로 예측했는가"** 를 이해하는 데 목적이 있습니다.
+
+### feature_importances_란?
+
+RandomForest는 여러 결정트리로 예측합니다. 이때 각 변수가 트리 분할에 얼마나 많이·크게 기여했는지를 합쳐 **변수 중요도**로 계산합니다. 값이 클수록 예측에 더 크게 기여했다는 뜻입니다.
+
+### permutation importance란?
+
+`feature_importances_`만으로는 부족할 수 있습니다 — 서로 강하게 상관된 변수끼리 중요도를 나눠 갖거나, 인코딩 방식·분할 기준에 영향을 받기 때문입니다. 그래서 `permutation_importance`로 교차 확인하는 습관이 좋습니다. 이 방법은 **특정 변수를 무작위로 섞었을 때 성능이 얼마나 떨어지는지**를 보고 중요도를 계산합니다 — "그 변수가 망가지면 성능이 얼마나 나빠지는가"를 직접 보는 방식입니다.
+
+### 트리 모델의 feature_importances_ 확인
+
+6-8에서 구한 `best_model`을 사용합니다.
+
 ```python
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# ColumnTransformer 변환 후의 실제 컬럼 이름을 가져옵니다.
+feature_names = best_model.named_steps['prep'].get_feature_names_out()
+
+# RandomForest의 feature_importances_ 추출
 importances = best_model.named_steps['model'].feature_importances_
+
+fi_df = pd.DataFrame({
+    'feature': feature_names,
+    'importance': importances
+}).sort_values('importance', ascending=False)
+print(fi_df.head(10))
+
+# 상위 10개 시각화
+top10 = fi_df.head(10).sort_values('importance')
+plt.figure(figsize=(8, 5))
+plt.barh(top10['feature'], top10['importance'])
+plt.xlabel('Importance')
+plt.title('Top 10 Feature Importances (RandomForest)')
+plt.tight_layout()
+plt.show()
+```
+
+![feature_importances_ 상위 10](./imgs/module06/m6_importance.png)
+
+### permutation importance로 교차 확인
+
+`feature_importances_`는 전처리 이후의 세부 컬럼 기준이지만, `permutation_importance`를 파이프라인 전체에 실행하면 **원래 입력 변수(X_test의 컬럼)** 기준으로 볼 수 있습니다.
+
+```python
+from sklearn.inspection import permutation_importance
+
+# 회귀 문제이므로 scoring='r2'
+perm = permutation_importance(
+    best_model, X_test, y_test,
+    n_repeats=10, random_state=42, scoring='r2'
+)
+
+perm_df = pd.DataFrame({
+    'feature': X_test.columns,
+    'importance_mean': perm.importances_mean,
+    'importance_std': perm.importances_std
+}).sort_values('importance_mean', ascending=False)
+print(perm_df.head(10))
+
+top10_perm = perm_df.head(10).sort_values('importance_mean')
+plt.figure(figsize=(8, 5))
+plt.barh(top10_perm['feature'], top10_perm['importance_mean'])
+plt.xlabel('Permutation Importance')
+plt.title('Top 10 Permutation Importances')
+plt.tight_layout()
+plt.show()
+```
+
+![permutation importance 상위 10](./imgs/module06/m6_perm.png)
+
+### prev_height_cm을 뺀 나머지 변수 비교
+
+`prev_height_cm`의 중요도가 워낙 압도적이라, 위 그래프에서는 나머지 변수들이 모두 0 근처로 눌려 서로 구분되지 않습니다. 나머지 변수들 사이의 상대적 차이를 보려면 `prev_height_cm`을 제외하고 다시 그려 봅니다.
+
+```python
+# prev_height_cm을 제외한 나머지 변수만 permutation importance로 비교
+perm_rest = perm_df[perm_df['feature'] != 'prev_height_cm'].sort_values('importance_mean')
+
+plt.figure(figsize=(8, 5))
+plt.barh(perm_rest['feature'], perm_rest['importance_mean'])
+plt.xlabel('Permutation Importance')
+plt.title('Permutation Importance (excluding prev_height_cm)')
+plt.tight_layout()
+plt.show()
+```
+
+![prev_height_cm 제외 permutation importance](./imgs/module06/m6_perm_excl.png)
+
+`prev_height_cm`을 빼면 그 다음으로는 `light_condition`(채광)과 `species`(품종)가 상대적으로 높고, `location_type`·`pot_size`는 거의 기여하지 않습니다. 다만 이들의 중요도는 모두 0.007 이하로, `prev_height_cm`(약 1.7)에 비하면 **수백 배 작은 미미한 수준**입니다. 즉 이 데이터에서 키 예측은 사실상 이전 키 하나가 지배하고, 나머지 변수들의 기여 차이는 상대적으로만 의미가 있습니다.
+
+### 결과 해석
+
+두 방식 모두에서 **`prev_height_cm`이 압도적으로 높은 중요도**를 보입니다(feature_importances_는 약 0.95, permutation은 나머지 변수를 크게 앞섬). 이는 자연스러운 결과입니다 — 6-3에서 확인했듯 `prev_height_cm`과 `height_cm`의 관계가 매우 강하기 때문에, **이전 키가 현재 키 예측의 가장 큰 단서**가 된 것입니다.
+
+두 방식이 모두 같은 변수를 지목한다는 것은, 모델이 실제로도 그 변수를 핵심 신호로 사용하고 있음을 뒷받침합니다. 반대로 두 결과가 크게 다르면 변수 간 상관이 강하거나, 중요도가 여러 변수에 나뉘거나, 트리 분할 중요도와 실제 예측 의존도가 다를 가능성을 의심해야 합니다.
+
+### 해석할 때 주의할 점
+
+**① 중요도가 높다고 "원인"이라고 단정하면 안 됩니다.** 중요도는 어디까지나 "예측에 많이 쓰였다"는 뜻이지, 그 변수가 결과의 원인이라는 뜻은 아닙니다(4장 상관 ≠ 인과와 같은 맥락).
+
+**② 원-핫 인코딩된 변수는 여러 조각으로 나뉩니다.** 범주형은 인코딩 후 여러 컬럼으로 분리되므로, 원래 하나의 변수였어도 중요도가 여러 칸에 나뉘어 나타날 수 있습니다.
+
+**③ 트리 중요도는 절대적 기준이 아닙니다.** 그래서 `feature_importances_` 하나만 믿기보다 `permutation_importance`로 함께 확인하는 것이 더 안전합니다.
+
+::: warning feature_importances_는 절대적 진실이 아닙니다
+트리 중요도는 상관된 변수끼리 나눠 갖거나 인코딩 영향을 받을 수 있습니다. 그래서 `permutation_importance`로 교차 확인하는 습관이 좋습니다.
+:::
+
+
 # 다른 방식으로도 재확인
 from sklearn.inspection import permutation_importance
 perm = permutation_importance(best_model, X_test, y_test, n_repeats=10)

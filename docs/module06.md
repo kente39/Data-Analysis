@@ -1077,6 +1077,8 @@ plt.show()
 
 
 # 다른 방식으로도 재확인
+
+```
 from sklearn.inspection import permutation_importance
 perm = permutation_importance(best_model, X_test, y_test, n_repeats=10)
 ```

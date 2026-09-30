@@ -1,5 +1,6 @@
 import DefaultTheme from 'vitepress/theme'
 import { h } from 'vue'
+import { injectSpeedInsights } from '@vercel/speed-insights'
 import BackToTop from './BackToTop.vue'
 import ProgressTracker from './ProgressTracker.vue'
 import ResumeBanner from './ResumeBanner.vue'
@@ -22,5 +23,10 @@ export default {
     // 마크다운 어디서나 <ImageCarousel> 사용 가능하도록 전역 등록
     app.component('ImageCarousel', ImageCarousel)
     app.component('Tooltip', Tooltip)
+    
+    // Vercel Speed Insights 초기화
+    if (typeof window !== 'undefined') {
+      injectSpeedInsights()
+    }
   }
 }

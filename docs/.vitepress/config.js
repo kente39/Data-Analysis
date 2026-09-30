@@ -43,7 +43,8 @@ export default {
         collapsed: false,
         items: [
           { text: '5. 전처리 (scikit-learn)', link: '/module05' },
-          { text: '6. 머신러닝 (scikit-learn)', link: '/module06' }
+          { text: '6. 머신러닝 (scikit-learn)', link: '/module06' },
+          { text: '7. 딥러닝 (TensorFlow·Keras)', link: '/module07' }
         ]
       }
     ],

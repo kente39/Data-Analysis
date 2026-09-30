@@ -229,3 +229,220 @@ MAE와 RMSE의 **큰 차이 자체가 진단 정보**입니다. RMSE는 큰 오�
 ::: tip 검수를 왜 할까
 요약 지표는 "얼마나 틀렸나"만 알려주지만, 예측-실제 그래프와 잔차는 **"어디서, 왜 틀렸나"** 를 보여줍니다. 실무에서 모델을 배포하기 전 반드시 거치는 단계입니다.
 :::
+
+## 7-4. 분류 — is_blooming 예측
+
+6장에서 머신러닝으로 풀었던 **개화 여부(`is_blooming`) 예측**을, 이번엔 신경망으로 풀고 6장 결과와 비교합니다.
+
+::: tip 분류 신경망의 뼈대
+이 문제는 **이진분류**입니다(0=개화 안 함, 1=개화함). 회귀와 달리 출력층에서 **확률**을 내야 합니다.
+
+- **입력** — 분류용 전처리기(`height_cm`은 정보 누수라 제외, `plant_id`도 제외)
+- **은닉층** — `Dense(64) → Dense(32)`, 활성화 `ReLU`
+- **출력층** — `Dense(1, activation='sigmoid')` → 출력을 0~1 확률로. 보통 **0.5 이상이면 1**로 예측.
+- **손실** — `binary_crossentropy`, **옵티마이저** — `adam`
+
+`sigmoid` 출력이 `0.92`면 개화 가능성 높음, `0.18`이면 낮음으로 읽습니다.
+:::
+
+분류는 loss만으로 부족해, 여러 지표를 함께 봅니다 — **Accuracy**(전체 정답률), **Precision**(1 예측 중 실제 1 비율), **Recall**(실제 1 중 찾아낸 비율), **F1**(둘의 균형), **ROC-AUC**(임계값 전반의 구분력).
+
+::: warning 왜 Accuracy만 보면 안 되나
+`is_blooming`은 개화(1)가 약 12%뿐인 **불균형 데이터**입니다. 전부 0으로만 찍어도 Accuracy가 88%에 이르므로, Precision·Recall·F1·ROC-AUC를 함께 봐야 합니다(6장 6-5·6-7과 같은 맥락).
+:::
+
+```python
+import numpy as np, random, tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.metrics import (accuracy_score, precision_score, recall_score,
+                             f1_score, roc_auc_score)
+
+random.seed(42); np.random.seed(42); tf.random.set_seed(42)
+
+# [1] 분류용 입력/출력 (회귀와 다른 분할!)
+# - 타깃: is_blooming을 0/1로
+# - 입력: height_cm(정보 누수)·plant_id(식별자)는 제외
+y_clf = (df['is_blooming'] == 'Y').astype(int)
+X_clf = df.drop(columns=['is_blooming', 'height_cm', 'plant_id'])
+
+# stratify로 train/test에 Y/N 비율 유지 (불균형 데이터에 중요)
+Xc_train, Xc_test, yc_train, yc_test = train_test_split(
+    X_clf, y_clf, test_size=0.2, random_state=42, stratify=y_clf)
+
+# [2] 분류용 전처리기 (수치=중앙값·표준화 / 범주=최빈값·OneHot)
+num_c = X_clf.select_dtypes(include='number').columns.tolist()
+cat_c = X_clf.select_dtypes(exclude='number').columns.tolist()
+preprocessor_c = ColumnTransformer([
+    ('num', Pipeline([('imputer', SimpleImputer(strategy='median')),
+                      ('scaler', StandardScaler())]), num_c),
+    ('cat', Pipeline([('imputer', SimpleImputer(strategy='most_frequent')),
+                      ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))]), cat_c),
+])
+Xc_train_p = preprocessor_c.fit_transform(Xc_train)   # train에만 fit
+Xc_test_p = preprocessor_c.transform(Xc_test)         # test는 transform만
+
+# [3] 이진분류 신경망 (출력층 sigmoid)
+clf_model = keras.Sequential([
+    layers.Input(shape=(Xc_train_p.shape[1],)),
+    layers.Dense(64, activation='relu'),
+    layers.Dense(32, activation='relu'),
+    layers.Dense(1, activation='sigmoid')      # 0~1 확률 출력
+])
+clf_model.compile(optimizer='adam', loss='binary_crossentropy',
+                  metrics=[keras.metrics.BinaryAccuracy(name='acc'),
+                           keras.metrics.AUC(name='auc')])
+
+es = keras.callbacks.EarlyStopping(patience=10, restore_best_weights=True)
+history_clf = clf_model.fit(Xc_train_p, yc_train, validation_split=0.2,
+                            epochs=100, batch_size=32, callbacks=[es], verbose=0)
+
+# [4] 예측: predict()는 확률 → 0.5 기준으로 0/1 변환
+pred_prob = clf_model.predict(Xc_test_p, verbose=0).flatten()
+pred_cls = (pred_prob >= 0.5).astype(int)
+
+# [5] 지표 계산
+print(f'Accuracy ={accuracy_score(yc_test, pred_cls):.4f}')
+print(f'Precision={precision_score(yc_test, pred_cls, zero_division=0):.4f}')
+print(f'Recall   ={recall_score(yc_test, pred_cls, zero_division=0):.4f}')
+print(f'F1       ={f1_score(yc_test, pred_cls, zero_division=0):.4f}')
+print(f'ROC-AUC  ={roc_auc_score(yc_test, pred_prob):.4f}')
+```
+
+### 학습곡선 확인
+
+```python
+import matplotlib.pyplot as plt
+
+plt.plot(history_clf.history['loss'], label='train loss')
+plt.plot(history_clf.history['val_loss'], label='val loss')
+plt.xlabel('epoch'); plt.ylabel('loss (binary crossentropy)')
+plt.legend(); plt.show()
+```
+
+![분류 신경망 학습곡선](./imgs/module07/m7_clf_curve.png)
+
+훈련·검증 손실이 함께 내려가 수렴하고, EarlyStopping이 14에폭에서 멈췄습니다.
+
+### 결과 — 6장 머신러닝과 비교
+
+이번 신경망은 **Accuracy=0.877, Precision=0.480, Recall=0.098, F1=0.163, ROC-AUC=0.759** 입니다. 6장 결과와 비교하면:
+
+| 모델 | Accuracy | F1 | ROC-AUC | 비고 |
+|---|---:|---:|---:|---|
+| LogisticRegression | 0.880 | 0.167 | 0.762 | 6장 |
+| RandomForest | 0.881 | 0.168 | 0.717 | 6장 |
+| **DeepLearning (이번)** | 0.877 | 0.163 | 0.759 | 이번 절 |
+
+**해석:** 세 모델의 Accuracy·F1이 거의 같고, **딥러닝이 6장 모델을 넘지 못했습니다.** Recall(0.098)도 6장과 마찬가지로 낮아, 기본 임계값(0.5)에서는 실제 개화 개체를 대부분 놓칩니다(불균형 데이터의 전형적 문제). ROC-AUC는 0.759로 Logistic(0.762)과 비슷합니다.
+
+::: warning 분류에서도 딥러닝이 항상 최고는 아닙니다
+회귀와 같은 결론입니다 — 표 형태의 작은 데이터에서는 로지스틱 회귀·트리 모델이 더 단순하고 빠르면서 비슷하거나 더 좋습니다. 중요한 것은 "최신 모델"이 아니라 **데이터에 맞는 모델 선택**입니다. 낮은 Recall을 끌어올리려면 6장 6-7에서 본 **임계값 조정**을 쓸 수 있는데, 이는 다음 7-5에서 다룹니다.
+:::
+
+## 7-5. 분류 모델 검수 — 예측이 믿을 만한가
+
+분류도 숫자 하나로 끝내면 부족합니다. 모델이 **어떤 식으로 맞추고 틀리는지** 확인해야 합니다. 회귀에서 예측값·잔차를 봤듯, 분류에서는 **어느 클래스에서 실수하는지**와 **확률 기반으로도 잘 구분하는지**를 봅니다. 세 가지를 점검합니다 — 혼동행렬, 분류 리포트, ROC 곡선.
+
+### ① 혼동행렬(confusion matrix)
+
+혼동행렬은 예측을 네 칸으로 나눠 보여 줍니다.
+
+- **TN** 실제 0, 예측 0 — 개화 안 함을 맞힘
+- **FP** 실제 0, 예측 1 — 개화 안 했는데 개화한다고 잘못 예측
+- **FN** 실제 1, 예측 0 — 개화했는데 놓침
+- **TP** 실제 1, 예측 1 — 개화를 맞힘
+
+즉 혼동행렬은 **"모델이 어떤 종류의 실수를 더 많이 하는가"** 를 가장 직접적으로 보여 줍니다.
+
+```python
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+import matplotlib.pyplot as plt
+
+cm = confusion_matrix(yc_test, pred_cls)
+ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=[0, 1]).plot(cmap='Blues', values_format='d')
+plt.title('Confusion Matrix'); plt.show()
+```
+
+![혼동행렬](./imgs/module07/m7_clf_cm.png)
+
+**결과:** `[[865, 13], [110, 12]]` 입니다 — TN=865, FP=13, FN=**110**, TP=12. **FN(110)이 압도적으로 큽니다.** 실제 개화 개체 122개(110+12) 중 12개만 잡고 110개를 놓쳤다는 뜻이라, Recall이 매우 낮습니다. 반대로 FP는 13으로 작아, "개화한다"고 말할 때는 비교적 조심스럽습니다(Precision은 그럭저럭).
+
+::: tip FP와 FN 중 무엇이 더 문제인가
+- **FN이 많다** → 실제 개화를 놓침 → **Recall 낮음** (지금 이 경우)
+- **FP가 많다** → 개화 안 했는데 경보 → **Precision 낮음**
+
+개화 개체를 놓치면 안 되는 상황이면 Recall을, 헛경보가 문제면 Precision을 더 중시합니다.
+:::
+
+### ② 분류 리포트(classification report)
+
+혼동행렬이 실수의 종류라면, 분류 리포트는 이를 Precision·Recall·F1로 요약합니다.
+
+```python
+from sklearn.metrics import classification_report
+print(classification_report(yc_test, pred_cls, digits=4))
+```
+
+각 지표의 정의는 다음과 같습니다(TP·FP·FN은 위 혼동행렬 값).
+
+- **Precision = TP / (TP + FP)** — 1이라고 예측한 것 중 실제 1 비율. 높으면 "개화한다고 할 때 허위 경보가 적다".
+- **Recall = TP / (TP + FN)** — 실제 1 중 찾아낸 비율. 높으면 "실제 개화를 잘 안 놓친다".
+- **F1 = 2 × (Precision × Recall) / (Precision + Recall)** — 둘의 균형. 하나만 높으면 F1은 잘 안 오릅니다.
+
+읽는 법: Precision↑·Recall↓ → 예측은 신중하나 실제 1을 많이 놓침 / Recall↑·Precision↓ → 잘 잡지만 헛경보 많음 / 둘 다 높음 → 양성 클래스를 안정적으로 구분. **이번 모델은 Precision 0.48·Recall 0.10으로, 개화를 거의 놓치는 쪽입니다.**
+
+### ③ ROC 곡선과 ROC-AUC
+
+앞은 **0.5로 잘라** 평가했지만, 신경망은 원래 **확률(`pred_prob`)** 을 냅니다. 이 확률의 구분력을 보려면 ROC 곡선을 봅니다. 임계값을 0~1로 바꿔 가며 **TPR(=Recall)** 과 **FPR** 의 관계를 그린 것입니다.
+
+```python
+from sklearn.metrics import roc_curve, roc_auc_score
+
+fpr, tpr, thresholds = roc_curve(yc_test, pred_prob)
+auc = roc_auc_score(yc_test, pred_prob)
+
+plt.plot(fpr, tpr, label=f'ROC curve (AUC={auc:.4f})')
+plt.plot([0, 1], [0, 1], '--', label='random guess')
+plt.xlabel('False Positive Rate'); plt.ylabel('True Positive Rate')
+plt.title('ROC Curve'); plt.legend(); plt.show()
+```
+
+![ROC 곡선](./imgs/module07/m7_clf_roc.png)
+
+ROC 곡선 아래 면적이 **ROC-AUC**입니다 — 1에 가까울수록 좋고, 0.5면 랜덤 추측 수준입니다. 이번 모델은 **AUC=0.759**로, 랜덤(0.5)보다 확실히 낫습니다. 즉 **확률 자체는 개화/비개화를 꽤 구분**하는데도, 0.5 임계값에서 Recall이 낮았던 것입니다 — Accuracy는 임계값에 따라 흔들리지만 ROC-AUC는 확률 전체를 보므로 더 안정적인 비교 지표입니다.
+
+### ④ 임계값 0.5는 절대적인가
+
+`0.5`가 항상 최선은 아닙니다. 개화를 **놓치면 안 되면** 임계값을 낮춰 Recall을, **헛경보가 문제면** 높여 Precision을 키웁니다.
+
+```python
+from sklearn.metrics import precision_score, recall_score, f1_score
+
+for th in [0.5, 0.4, 0.3]:
+    p = (pred_prob >= th).astype(int)
+    print(f'threshold={th}: '
+          f'P={precision_score(yc_test, p, zero_division=0):.3f} '
+          f'R={recall_score(yc_test, p, zero_division=0):.3f} '
+          f'F1={f1_score(yc_test, p, zero_division=0):.3f}')
+```
+
+이 데이터에서는 임계값을 **0.5 → 0.3으로 낮추면 Recall이 약 0.10 → 0.27로** 오릅니다(대신 Precision은 하락). "무엇을 더 줄이고 싶은가"에 따라 기준을 조정하는 것입니다(6장 6-7의 임계값 조정과 같은 원리).
+
+### ⑤ 검수 결론
+
+1. **혼동행렬** — FN(110)이 커 실제 개화를 대부분 놓친다(Recall 낮음).
+2. **분류 리포트** — Precision 0.48·Recall 0.10·F1 0.16으로 양성 예측 품질이 낮다.
+3. **ROC-AUC=0.759** — 확률 자체의 구분력은 나쁘지 않다. 문제는 임계값·불균형.
+4. **6장과 비교** — Accuracy·F1·AUC 모두 로지스틱·랜덤포레스트와 비슷하고, 딥러닝이 이기지 못했다.
+
+회귀와 마찬가지로, 이 표 형태 데이터에서는 딥러닝이 전통적 머신러닝보다 낫다고 말할 수 없습니다. 이는 딥러닝이 약해서가 아니라 **데이터 구조상 더 단순한 모델이 잘 맞았기 때문**입니다.
+
+::: tip 분류 검수의 핵심
+좋은 분류 모델은 많이 맞추는 모델이 아니라, **어떤 실수를 얼마나 하는지 설명할 수 있는 모델**입니다. 혼동행렬과 ROC-AUC가 그 설명을 가능하게 합니다.
+:::

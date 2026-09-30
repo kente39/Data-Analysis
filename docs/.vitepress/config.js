@@ -46,6 +46,13 @@ export default {
           { text: '6. 머신러닝 (scikit-learn)', link: '/module06' },
           { text: '7. 딥러닝 (TensorFlow·Keras)', link: '/module07' }
         ]
+      },
+      {
+        text: '',
+        collapsed: false,
+        items: [
+          { text: '', link: '' }
+        ]
       }
     ],
     search: { provider: 'local' },

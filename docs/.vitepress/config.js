@@ -48,10 +48,10 @@ export default {
         ]
       },
       {
-        text: '',
+        text: '마무리',
         collapsed: false,
         items: [
-          { text: '', link: '' }
+          { text: '8.종합', link: '/module08' }
         ]
       }
     ],
